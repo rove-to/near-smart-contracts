@@ -34,6 +34,7 @@ pub struct Contract {
     metadata: LazyOption<NFTContractMetadata>,
 
     pub admin_id : AccountId,
+    pub max_supply : u64,
 
     // keep track of token's price after created
     pub token_prices: LookupMap<TokenId, u128>,
@@ -52,11 +53,12 @@ enum StorageKey {
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new(admin_id: ValidAccountId, operator_id : ValidAccountId, metadata : NFTContractMetadata) -> Self {
+    pub fn new(admin_id: ValidAccountId, operator_id : ValidAccountId, max_supply : u64, metadata : NFTContractMetadata) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         Self {
             admin_id: admin_id.into(),
+            max_supply,
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
                 operator_id,
@@ -112,6 +114,7 @@ impl Contract {
     /// initialization call to `new`
     #[payable]
     pub fn create_nft(&mut self, token_id: TokenId, receiver_id: ValidAccountId, token_metadata: TokenMetadata, price_in_string: String) -> Token {
+        assert!(self.tokens.owner_by_id.len() < self.max_supply, "REACH MAX SUPPLY");
         // check owner id
         env::log(price_in_string.as_bytes());
         let price : u128;
