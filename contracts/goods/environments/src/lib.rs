@@ -29,10 +29,6 @@ use near_sdk::{
 };
 use near_sdk::env::attached_deposit;
 
-// send cai anh len ipfs
-// update file json
-// { price: ..., imageUri: }
-
 near_sdk::setup_alloc!();
 
 #[near_bindgen]
