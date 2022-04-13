@@ -23,9 +23,7 @@ use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, LookupMap};
 use near_sdk::json_types::ValidAccountId;
-use near_sdk::{
-    env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, log
-};
+use near_sdk::{env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, log, assert_one_yocto};
 
 near_sdk::setup_alloc!();
 
@@ -34,6 +32,8 @@ near_sdk::setup_alloc!();
 pub struct Contract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
+
+    pub admin_id : AccountId,
 
     // keep track of token's price after created
     pub token_prices: LookupMap<TokenId, u128>,
@@ -56,6 +56,7 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         Self {
+            admin_id: admin_id.into(),
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
                 operator_id,
@@ -66,6 +67,39 @@ impl Contract {
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
             token_prices: LookupMap::new(StorageKey::TokenPrice.try_to_vec().unwrap())
         }
+    }
+
+    fn assert_admin_only(&mut self) {
+        // assert that the user attached exactly 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
+        assert_one_yocto();
+        assert_eq!(env::predecessor_account_id(), self.admin_id, "Unauthorized");
+    }
+
+    fn assert_operator_only(&mut self) {
+        // assert that the user attached exactly 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
+        assert_one_yocto();
+        assert_eq!(env::predecessor_account_id(), self.tokens.owner_id, "Unauthorized");
+    }
+
+    /// change contract's admin, only current contract's admin can call this function
+    #[payable]
+    pub fn change_admin(&mut self, new_admin_id: ValidAccountId) {
+        self.assert_admin_only();
+        self.admin_id = new_admin_id.into();
+    }
+
+    #[payable]
+    pub fn change_operator(&mut self, new_operator_id: ValidAccountId) {
+        self.assert_admin_only();
+        self.tokens.owner_id = new_operator_id.into();
+    }
+
+    pub fn get_admin(self) -> AccountId {
+        self.admin_id
+    }
+
+    pub fn get_operator(self) -> AccountId {
+        self.tokens.owner_id
     }
 
     /// Mint a new token with ID=`token_id` belonging to `receiver_id`.
