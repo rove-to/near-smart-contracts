@@ -155,7 +155,6 @@ impl Contract {
     #[payable]
     pub fn update_token_metadata(&mut self, token_id : TokenId, update_token_metadata : TokenMetadata) {
         self.assert_operator_only();
-        let token_metadata_by_id = Some(self.tokens.token_metadata_by_id);
         if let Some(token_metadata_by_id) = &mut self.tokens.token_metadata_by_id {
             token_metadata_by_id.insert(&token_id, &update_token_metadata);
         } else {
