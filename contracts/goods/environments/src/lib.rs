@@ -151,6 +151,17 @@ impl Contract {
             env::panic(b"tokens_per_owner is null");
         }
     }
+
+    #[payable]
+    pub fn update_metadata(&mut self, token_id : TokenId, update_token_metadata : TokenMetadata) {
+        self.assert_admin_only();
+        let token_metadata_by_id = Some(self.tokens.token_metadata_by_id);
+        if let Some(token_metadata_by_id) = &mut self.tokens.token_metadata_by_id {
+            token_metadata_by_id.insert(&token_id, &update_token_metadata);
+        } else {
+            env::panic(b"token_metadata_by_id is null");
+        }
+    }
 }
 
 near_contract_standards::impl_non_fungible_token_core!(Contract, tokens);
