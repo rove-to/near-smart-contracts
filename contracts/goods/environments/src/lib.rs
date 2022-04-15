@@ -174,7 +174,7 @@ impl Contract {
     /// `self.tokens.mint` will enforce `predecessor_account_id` to equal the ` owner_id` given in
     /// initialization call to `new`
     #[payable]
-    pub fn create_nft(
+    pub fn nft_mint_batch(
         &mut self,
         init_supply: u64,
         receiver_id: AccountId,
@@ -231,7 +231,7 @@ impl Contract {
     }
 
     #[payable]
-    pub fn user_mint(&mut self, receiver_id: AccountId) {
+    pub fn nft_user_mint(&mut self, receiver_id: AccountId) {
         assert!(
             self.user_mintable_tokens.len() > 0,
             "mintable tokens is empty now"
