@@ -1,6 +1,8 @@
 # IDEs and editors
 /.idea
 near-smart-contracts.iml
+node_modules
+yarn.lock
 
 # build files
 /out
