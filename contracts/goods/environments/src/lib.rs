@@ -106,14 +106,14 @@ impl Contract {
     }
 
     fn assert_admin_only(&mut self) {
-        // assert that the user attached exactly 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
-        assert_one_yocto();
+        // assert that the user attached greater than or equal 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
+        assert_at_least_one_yocto();
         assert_eq!(env::predecessor_account_id(), self.admin_id, "Unauthorized");
     }
 
     fn assert_operator_only(&mut self) {
-        // assert that the user attached exactly 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
-        assert_one_yocto();
+        // assert that the user attached greater than or equal 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
+        assert_at_least_one_yocto();
         assert_eq!(
             env::predecessor_account_id(),
             self.tokens.owner_id,
