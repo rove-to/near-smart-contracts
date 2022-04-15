@@ -15,20 +15,25 @@ NOTES:
   - To prevent the deployed contract from being modified or deleted, it should not have any access
     keys on its account.
  */
+use std::collections::HashMap;
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
-use near_contract_standards::non_fungible_token::NonFungibleToken;
+use near_contract_standards::non_fungible_token::{NonFungibleToken, refund_deposit_to_account};
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption, LookupMap, UnorderedSet};
-use near_sdk::json_types::ValidAccountId;
-use near_sdk::{
-    assert_one_yocto, env, log, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
-    PromiseOrValue,
-};
+use near_sdk::collections::{LazyOption, LookupMap, UnorderedMap, UnorderedSet};
+use near_sdk::{assert_one_yocto, env, log, near_bindgen, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, Balance, AccountId};
 
-near_sdk::setup_alloc!();
+use crate::internal::*;
+pub use crate::types::*;
+pub use crate::royalty::*;
+
+mod internal;
+mod types;
+mod royalty;
+
+const ONE_HUNDRED_PERCENT_IN_BPS: u16 = 10_000;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -40,10 +45,11 @@ pub struct Contract {
     pub operator_id: AccountId,
     pub treasury_id: AccountId,
     pub max_supply: u64,
+    pub royalties: UnorderedMap<AccountId, u16>,
 
     // tokens that can be minted by calling user_mint method
     // always belongs to the set of tokens of operator
-    pub user_mintable_tokens : UnorderedSet<TokenId>,
+    pub user_mintable_tokens: UnorderedSet<TokenId>,
 
     // keep track of token's price after created
     pub token_prices: LookupMap<TokenId, u128>,
@@ -57,21 +63,29 @@ enum StorageKey {
     Enumeration,
     Approval,
     TokenPrice,
-    UserMintableToken
+    UserMintableToken,
+    Royalties
 }
 
 #[near_bindgen]
 impl Contract {
     #[init]
     pub fn new(
-        admin_id: ValidAccountId,
-        operator_id: ValidAccountId,
-        treasury_id: ValidAccountId,
+        admin_id: AccountId,
+        operator_id: AccountId,
+        treasury_id: AccountId,
         max_supply: u64,
         metadata: NFTContractMetadata,
+        init_royalties : Option<HashMap<AccountId, u16>>
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
+        let mut royalties = UnorderedMap::new(StorageKey::Royalties);
+        if let Some(init_royalties) = init_royalties {
+            for (account, amount) in init_royalties {
+                royalties.insert(&account, &amount);
+            }
+        }
         Self {
             admin_id: admin_id.into(),
             operator_id: operator_id.clone().into(),
@@ -80,13 +94,14 @@ impl Contract {
             user_mintable_tokens: UnorderedSet::new(StorageKey::UserMintableToken),
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
-                operator_id,
+                operator_id.clone().into(),
                 Some(StorageKey::TokenMetadata),
                 Some(StorageKey::Enumeration),
                 Some(StorageKey::Approval),
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
             token_prices: LookupMap::new(StorageKey::TokenPrice),
+            royalties
         }
     }
 
@@ -108,7 +123,7 @@ impl Contract {
 
     /// change contract's admin, only current contract's admin can call this function
     #[payable]
-    pub fn change_admin(&mut self, new_admin_id: ValidAccountId) {
+    pub fn change_admin(&mut self, new_admin_id: AccountId) {
         self.assert_admin_only();
         self.admin_id = new_admin_id.into();
     }
@@ -116,20 +131,24 @@ impl Contract {
     /// change tokens.owner_id and operator_id to new_operator_id
     /// move all tokens of current operator to new operator
     #[payable]
-    pub fn change_operator(&mut self, new_operator_id: ValidAccountId) {
+    pub fn change_operator(&mut self, new_operator_id: AccountId) {
         self.assert_admin_only();
 
         let user_mintable_tokens_in_vec = self.user_mintable_tokens.to_vec();
-        for token_id in & user_mintable_tokens_in_vec {
-            self.tokens.internal_transfer_unguarded(token_id, &self.operator_id, new_operator_id.clone().as_ref());
+        for token_id in &user_mintable_tokens_in_vec {
+            self.tokens.internal_transfer_unguarded(
+                token_id,
+                &self.operator_id.clone(),
+                &new_operator_id.clone(),
+            );
         }
 
-        self.tokens.owner_id = new_operator_id.clone().into();
+        self.tokens.owner_id = new_operator_id.clone();
         self.operator_id = new_operator_id.into();
     }
 
     #[payable]
-    pub fn change_treasury(&mut self, new_treasury_id : ValidAccountId) {
+    pub fn change_treasury(&mut self, new_treasury_id: AccountId) {
         self.assert_admin_only();
         self.treasury_id = new_treasury_id.into();
     }
@@ -158,20 +177,22 @@ impl Contract {
     pub fn create_nft(
         &mut self,
         init_supply: u64,
-        receiver_id: ValidAccountId,
+        receiver_id: AccountId,
         token_metadata: TokenMetadata,
         price_in_string: String,
     ) -> Vec<Token> {
+        self.assert_operator_only();
         assert_eq!(self.tokens.owner_by_id.len(), 0, "TOKENS CREATED");
-        // check owner id
-        env::log(price_in_string.as_bytes());
+
+        let initial_storage_usage = env::storage_usage();
+
         let price: u128;
         match u128::from_str_radix(&price_in_string, 10) {
             Ok(val) => {
                 price = val;
             }
             Err(_e) => {
-                env::panic(b"error when parse price_in_string to u128");
+                env::panic_str("error when parse price_in_string to u128");
             }
         }
 
@@ -180,10 +201,11 @@ impl Contract {
 
         for i in 0..init_supply {
             let token_id: TokenId = i.to_string();
-            let token = self.tokens.mint(
+            let token = self.tokens.internal_mint_with_refund(
                 token_id.clone(),
-                receiver_id.clone(),
+                receiver_id.clone().into(),
                 Some(token_metadata.clone()),
+                None
             );
             self.token_prices.insert(&token_id, &price);
             tokens.push(token);
@@ -191,22 +213,31 @@ impl Contract {
         let operator_id = self.operator_id.clone();
         for i in init_supply..self.max_supply {
             let token_id: TokenId = i.to_string();
-            let token = self.tokens.mint(
+            let token = self.tokens.internal_mint_with_refund(
                 token_id.clone(),
                 operator_id.clone().try_into().unwrap(),
                 Some(token_metadata.clone()),
+                None
             );
             self.token_prices.insert(&token_id, &price);
             self.user_mintable_tokens.insert(&token_id);
             tokens.push(token);
         }
+
+        let storage_used = env::storage_usage() - initial_storage_usage;
+        refund_deposit_to_account(storage_used, env::predecessor_account_id());
+
         tokens
     }
 
     #[payable]
-    pub fn user_mint(&mut self, receiver_id: ValidAccountId) {
-        assert!(self.user_mintable_tokens.len() > 0, "owner's tokens is empty now");
-        let token_id = self.user_mintable_tokens
+    pub fn user_mint(&mut self, receiver_id: AccountId) {
+        assert!(
+            self.user_mintable_tokens.len() > 0,
+            "mintable tokens is empty now"
+        );
+        let token_id = self
+            .user_mintable_tokens
             .as_vector()
             .get(0)
             .expect("Unable to access user_mintable_tokens's first token");
@@ -218,11 +249,16 @@ impl Contract {
         // make sure deposit money >= token price
         assert!(env::attached_deposit() >= token_price);
         self.tokens
-            .internal_transfer_unguarded(&token_id, &self.operator_id, receiver_id.as_ref());
+            .internal_transfer_unguarded(&token_id, &self.operator_id, &receiver_id);
 
         self.user_mintable_tokens.remove(&token_id);
 
-        log!("Transfer {} from {} to {}", token_id, &self.operator_id, receiver_id);
+        log!(
+            "Transfer {} from {} to {}",
+            token_id,
+            &self.operator_id,
+            receiver_id
+        );
     }
 
     #[payable]
@@ -235,7 +271,7 @@ impl Contract {
         if let Some(token_metadata_by_id) = &mut self.tokens.token_metadata_by_id {
             token_metadata_by_id.insert(&token_id, &update_token_metadata);
         } else {
-            env::panic(b"token_metadata_by_id is null");
+            env::panic_str("token_metadata_by_id is null");
         }
     }
 }
@@ -250,3 +286,21 @@ impl NonFungibleTokenMetadataProvider for Contract {
         self.metadata.get().unwrap()
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use near_sdk::test_utils::{accounts, VMContextBuilder};
+//     use near_sdk::testing_env;
+//
+//     const NFT_CONTRACT_ID : string = "nft-contract.testnet";
+//
+//     fn get_context(predecessor_account_id: ValidAccountId) -> VMContextBuilder {
+//         let mut builder = VMContextBuilder::new();
+//         builder
+//             .current_account_id(accounts(0))
+//             .signer_account_id(predecessor_account_id.clone())
+//             .predecessor_account_id(predecessor_account_id);
+//         builder
+//     }
+// }
