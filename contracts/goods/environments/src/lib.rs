@@ -253,6 +253,8 @@ impl Contract {
 
         self.user_mintable_tokens.remove(&token_id);
 
+        Promise::new(self.treasury_id.clone()).transfer(env::attached_deposit());
+
         log!(
             "Transfer {} from {} to {}",
             token_id,
