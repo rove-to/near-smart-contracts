@@ -28,12 +28,16 @@ use near_sdk::{assert_one_yocto, env, log, near_bindgen, BorshStorageKey, PanicO
 use crate::internal::*;
 pub use crate::types::*;
 pub use crate::royalty::*;
+pub use crate::events::*;
 
 mod internal;
 mod types;
 mod royalty;
+mod events;
 
 const ONE_HUNDRED_PERCENT_IN_BPS: u16 = 10_000;
+pub const NFT_METADATA_SPEC: &str = "1.0.0";
+pub const NFT_STANDARD_NAME: &str = "nep171";
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -198,6 +202,7 @@ impl Contract {
 
         // vector of created tokens
         let mut tokens: Vec<Token> = Vec::new();
+        let mut token_ids: Vec<String> = Vec::new();
 
         for i in 0..init_supply {
             let token_id: TokenId = i.to_string();
@@ -221,8 +226,25 @@ impl Contract {
             );
             self.token_prices.insert(&token_id, &price);
             self.user_mintable_tokens.insert(&token_id);
+
+            token_ids.push(token.token_id.to_string());
             tokens.push(token);
         }
+
+        // Construct the mint log as per the events standard.
+        let nft_mint_log: EventLog = EventLog {
+            standard: NFT_STANDARD_NAME.to_string(),
+            version: NFT_METADATA_SPEC.to_string(),
+
+            event: EventLogVariant::NftMint(vec![NftMintLog {
+                owner_id: operator_id.to_string(),
+                token_ids,
+                memo: None,
+            }]),
+        };
+
+        // Log the serialized json.
+        env::log_str(&nft_mint_log.to_string());
 
         let storage_used = env::storage_usage() - initial_storage_usage;
         refund_deposit_to_account(storage_used, env::predecessor_account_id());

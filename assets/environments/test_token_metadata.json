@@ -1,7 +1,7 @@
 {
   "title": "The Place to Be - Maximum Blue Purple",
   "description": "Meet at your place? This swanky apartment in the 3D web comes equipped for parties and movie nights and is spacious enough for all your friends, their pets, and your favorite NFT art collections. Visit one here: rove.to",
-  "media": "ipfs://QmbPPexxHPkWpdU4i1gaD2LHmVsz7BZ5f1DcF8WW3oZPvs",
+  "media": "https://ipfs.rove.to/ipfs/QmbPPexxHPkWpdU4i1gaD2LHmVsz7BZ5f1DcF8WW3oZPvs",
   "media_hash": "QmbPPexxHPkWpdU4i1gaD2LHmVsz7BZ5f1DcF8WW3oZPvs",
   "copies": null,
   "issued_at": null,
@@ -9,6 +9,6 @@
   "starts_at": null,
   "updated_at": null,
   "extra": "https://rove.to/",
-  "reference": "ipfs://QmS4BnfX2brU6tL1ncnZY3ALVCkVHd2eS7jbzmm7CUWXFH",
+  "reference": "https://ipfs.rove.to/ipfs/QmS4BnfX2brU6tL1ncnZY3ALVCkVHd2eS7jbzmm7CUWXFH",
   "reference_hash": "QmS4BnfX2brU6tL1ncnZY3ALVCkVHd2eS7jbzmm7CUWXFH"
 }
