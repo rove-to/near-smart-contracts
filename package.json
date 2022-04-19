@@ -15,7 +15,8 @@
     "dev": "nodemon --watch contract/src -e rs --exec \"npm run start\"",
     "test:contract": "cd contracts/goods/environments && cargo test -- --nocapture",
     "test": "npm run build:contract:debug && jest test --runInBand",
-    "makecontract": "cd contracts/goods/environments && ./build.sh && cd .. && ls && cd market-contract && ./build.sh && cd .."
+    "makecontract": "cd contracts/goods/environments && ./build.sh && cd .. && ls && cd market-contract && ./build.sh && cd ..",
+    "ts:run": "npx ts-node"
   },
   "devDependencies": {
     "@babel/core": "~7.14.0",
