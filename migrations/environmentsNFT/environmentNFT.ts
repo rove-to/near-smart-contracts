@@ -1,10 +1,11 @@
-// import * as fs from "fs";
-// import {connect} from "near-api-js";
+import * as fs from "fs";
+import {connect} from "near-api-js";
 
-// const nearConfig = require("../../near.config");
+const nearConfig = require("../../near.config");
 
 class EnvironmentNFT {
     network: string;
+    near: any;
 
     constructor(network: any) {
         this.network = network;
@@ -13,13 +14,9 @@ class EnvironmentNFT {
     async deploy(wasm: string, accountID: string) {
         console.log(wasm);
         console.log(accountID);
-        // let near
-        // if (this.network == "testnet") {
-        //     // near  = await connect(nearConfigTest);
-        // } else {
-        //     near = await connect(nearConfig);
-        // }
-        // const account = await near.account(process.env.NFT_CONTRACT_ID);
+        this.near = await connect(nearConfig[this.network]);
+
+        // const account = await near.account(accountID);
         // const response = await account.deployContract(fs.readFileSync(wasm));
         // console.log(response);
     }
