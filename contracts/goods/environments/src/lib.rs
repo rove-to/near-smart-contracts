@@ -277,6 +277,22 @@ impl Contract {
 
         Promise::new(self.treasury_id.clone()).transfer(env::attached_deposit());
 
+        // Construct the transfer log as per the events standard.
+        let nft_transfer_log: EventLog = EventLog {
+            standard: NFT_STANDARD_NAME.to_string(),
+            version: NFT_METADATA_SPEC.to_string(),
+            event: EventLogVariant::NftTransfer(vec![NftTransferLog {
+                authorized_id: None,
+                old_owner_id: self.operator_id.to_string(),
+                new_owner_id: receiver_id.to_string(),
+                token_ids: vec![token_id.to_string()],
+                memo: None,
+            }]),
+        };
+
+        // Log the serialized json.
+        env::log_str(&nft_transfer_log.to_string());
+
         log!(
             "Transfer {} from {} to {}",
             token_id,
