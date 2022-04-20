@@ -1,7 +1,16 @@
+const nearAPI = require("near-api-js");
+const {keyStores} = nearAPI;
+
+const path = require("path");
+const homedir = require("os").homedir();
+const CREDENTIALS_DIR = ".near-credentials";
+const credentialsPath = path.join(homedir, CREDENTIALS_DIR);
+const keyStore = new keyStores.UnencryptedFileSystemKeyStore(credentialsPath);
+
 module.exports = {
     testnet: {
         networkId: "testnet",
-        keyStore: "~/.near-credentials/testnet/test-1.testnet.json", // optional if not signing transactions
+        keyStore,
         nodeUrl: "https://rpc.testnet.near.org",
         walletUrl: "https://wallet.testnet.near.org",
         helperUrl: "https://helper.testnet.near.org",
@@ -9,7 +18,7 @@ module.exports = {
     },
     mainnet: {
         networkId: "mainnet",
-        keyStore, // optional if not signing transactions
+        keyStore,
         nodeUrl: "https://rpc.mainnet.near.org",
         walletUrl: "https://wallet.mainnet.near.org",
         helperUrl: "https://helper.mainnet.near.org",
@@ -17,7 +26,7 @@ module.exports = {
     },
     betanet: {
         networkId: "betanet",
-        keyStore, // optional if not signing transactions
+        keyStore,
         nodeUrl: "https://rpc.betanet.near.org",
         walletUrl: "https://wallet.betanet.near.org",
         helperUrl: "https://helper.betanet.near.org",
@@ -25,6 +34,7 @@ module.exports = {
     },
     localnet: {
         networkId: "local",
+        keyStore,
         nodeUrl: "http://localhost:3030",
         walletUrl: "http://localhost:4000/wallet",
     }

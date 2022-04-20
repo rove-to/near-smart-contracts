@@ -11,7 +11,7 @@ import {EnvironmentNFT} from "./environmentNFT";
             return;
         }
         const nft = new EnvironmentNFT(process.env.NETWORK);
-        nft.deploy(process.argv[2], process.argv[3], process.argv[4], 0, "", "", "", "");
+        nft.deleteAccount(process.argv[2]);
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);
