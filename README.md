@@ -1,5 +1,13 @@
 # NEAR smart contract
 
+# Swicth network
+
+``echo NEAR_ENV=networkID``
+
+# Clone .env
+
+``cp .env.local .env``
+
 ## Build rust contract
 - `yarn compile`
 - `yarn compile:clear`
