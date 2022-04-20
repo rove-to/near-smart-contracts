@@ -11,7 +11,10 @@ import {EnvironmentNFT} from "./environmentNFT";
             return;
         }
         const nft = new EnvironmentNFT(process.env.NETWORK);
-        nft.deploy(process.argv[2], process.argv[3], process.argv[4], 0, "", "", "", "");
+        const wasm = process.argv[2];
+        const contractAccountId = process.argv[3];
+        const depositAmount = process.argv[4];
+        nft.deploy(wasm, contractAccountId, depositAmount, 0, "", "", "", "");
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);

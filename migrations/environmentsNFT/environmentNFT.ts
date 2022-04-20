@@ -41,8 +41,16 @@ class EnvironmentNFT {
         this.near = await connect(this.config);
         const deletedAccount = await this.near.account(deletedAccountID);
         try {
-            await this.config.keyStore.removeKey(deletedAccountID);
             await deletedAccount.deleteAccount(process.env.CREATOR_ACCOUNT_ID);
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async deleteKey(deletedAccountID: string) {
+        this.near = await connect(this.config);
+        try {
+            await this.config.keyStore.removeKey(this.config.networkId, deletedAccountID);
         } catch (e) {
             console.log(e);
         }
