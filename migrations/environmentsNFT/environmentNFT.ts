@@ -17,7 +17,7 @@ class EnvironmentNFT {
         console.log("config:", this.config);
     }
 
-    async createAccount(newAccountId: string, amount: string) {
+    async createAccount(newAccountId: string, amount: string, gas: string) {
         const near = await connect(this.config);
         const creatorAccount = await near.account(process.env.CREATOR_ACCOUNT_ID);
         const keyPair = KeyPair.fromRandom("ed25519");
@@ -30,7 +30,7 @@ class EnvironmentNFT {
                 new_account_id: newAccountId,
                 new_public_key: publicKey,
             },
-            gas: "300000000000000",
+            gas: utils.format.parseNearAmount(gas),
             attachedDeposit: utils.format.parseNearAmount(amount),
         });
         await this.config.keyStore.setKey(this.config.networkId, newAccountId, keyPair);

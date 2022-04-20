@@ -13,7 +13,7 @@ import {EnvironmentNFT} from "./environmentNFT";
         const nft = new EnvironmentNFT(process.env.NETWORK);
         const contractAccountId = process.argv[2] + "-contract-" + (new Date()).getTime() + "-" + process.env.CREATOR_ACCOUNT_ID;
         const depositAmount = process.argv[3];
-        await nft.createAccount(contractAccountId, depositAmount);
+        await nft.createAccount(contractAccountId, depositAmount, "0.01");
         console.log("Created contractAccountID:%s with deposit %s", contractAccountId, depositAmount);
     } catch (e) {
         // Deal with the fact the chain failed
