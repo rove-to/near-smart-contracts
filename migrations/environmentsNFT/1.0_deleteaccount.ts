@@ -11,7 +11,9 @@ import {EnvironmentNFT} from "./environmentNFT";
             return;
         }
         const nft = new EnvironmentNFT(process.env.NETWORK);
-        await nft.deleteAccount(process.argv[2]);
+        const deletedAccount = process.argv[2];
+        await nft.deleteAccount(deletedAccount);
+        console.log("Deleted contractAccountID", deletedAccount);
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);

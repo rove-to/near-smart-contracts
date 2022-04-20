@@ -56,8 +56,7 @@ class EnvironmentNFT {
         }
     }
 
-    async deploy(wasmFile: string, contractAccountID: string,
-                 price: number, tokenMetadata: any, adminID: string, operatorID: string, treasuryID: string) {
+    async deploy(wasmFile: string, contractAccountID: string, price: number, tokenMetadata: any, adminID: string, operatorID: string, treasuryID: string) {
         console.log("wasm: ", wasmFile);
         this.near = await connect(this.config);
 

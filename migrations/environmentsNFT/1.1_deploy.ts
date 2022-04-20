@@ -13,7 +13,8 @@ import {EnvironmentNFT} from "./environmentNFT";
         const nft = new EnvironmentNFT(process.env.NETWORK);
         const wasm = process.argv[2];
         const contractAccountId = process.argv[3];
-        nft.deploy(wasm, contractAccountId, 0, "", "", "", "");
+        await nft.deploy(wasm, contractAccountId, 0, "", "", "", "");
+        console.log("Deployed contract on contractAccountId:", contractAccountId)
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);
