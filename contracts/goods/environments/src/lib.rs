@@ -187,6 +187,20 @@ impl Contract {
             None,
         );
 
+        // Construct the mint log as per the events standard.
+        let nft_mint_log: EventLog = EventLog {
+            standard: NFT_STANDARD_NAME.to_string(),
+            version: NFT_METADATA_SPEC.to_string(),
+            event: EventLogVariant::NftMint(vec![NftMintLog {
+                owner_id: receiver_id.to_string(),
+                token_ids: vec![token_id.to_string()],
+                memo: None,
+            }]),
+        };
+
+        // Log the serialized json.
+        env::log_str(&nft_mint_log.to_string());
+
         let storage_used = env::storage_usage() - initial_storage_usage;
         let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
 
