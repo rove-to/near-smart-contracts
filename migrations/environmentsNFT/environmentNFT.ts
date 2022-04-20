@@ -17,9 +17,9 @@ class EnvironmentNFT {
         console.log("config:", this.config);
     }
 
-    async createAccount(creatorAccountId: any, newAccountId: string, amount: string) {
+    async createAccount(newAccountId: string, amount: string) {
         const near = await connect(this.config);
-        const creatorAccount = await near.account(creatorAccountId);
+        const creatorAccount = await near.account(process.env.CREATOR_ACCOUNT_ID);
         const keyPair = KeyPair.fromRandom("ed25519");
         const publicKey = keyPair.publicKey.toString();
 
@@ -42,7 +42,7 @@ class EnvironmentNFT {
         const deletedAccount = await this.near.account(deletedAccountID);
         try {
             await this.config.keyStore.removeKey(deletedAccountID);
-            await deletedAccount.deleteAccount(process.env.ACCOUNT_ID);
+            await deletedAccount.deleteAccount(process.env.CREATOR_ACCOUNT_ID);
         } catch (e) {
             console.log(e);
         }
@@ -56,7 +56,7 @@ class EnvironmentNFT {
         // create contract account id
         console.log("contractAccountID:", contractAccountID);
         try {
-            await this.createAccount(process.env.ACCOUNT_ID, contractAccountID, depositAmountContract)
+            await this.createAccount(contractAccountID, depositAmountContract)
             const contractAccount = await this.near.account(contractAccountID);
             console.log("create success contract account:", contractAccount);
             const response = await contractAccount.deployContract(fs.readFileSync(wasmFile));
