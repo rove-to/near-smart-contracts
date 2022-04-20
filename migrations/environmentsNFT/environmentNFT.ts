@@ -56,7 +56,7 @@ class EnvironmentNFT {
         }
     }
 
-    async deploy(wasmFile: string, contractAccountID: string, depositAmountContract: string,
+    async deploy(wasmFile: string, contractAccountID: string,
                  price: number, tokenMetadata: any, adminID: string, operatorID: string, treasuryID: string) {
         console.log("wasm: ", wasmFile);
         this.near = await connect(this.config);
@@ -64,10 +64,7 @@ class EnvironmentNFT {
         // create contract account id
         console.log("contractAccountID:", contractAccountID);
         try {
-            await this.createAccount(contractAccountID, depositAmountContract)
-            return;
             const contractAccount = await this.near.account(contractAccountID);
-            console.log("create success contract account:", contractAccount);
             const response = await contractAccount.deployContract(fs.readFileSync(wasmFile));
             console.log("deploy on:", response.transaction.hash);
 

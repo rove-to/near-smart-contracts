@@ -11,9 +11,9 @@ import {EnvironmentNFT} from "./environmentNFT";
             return;
         }
         const nft = new EnvironmentNFT(process.env.NETWORK);
-        const wasm = process.argv[2];
-        const contractAccountId = process.argv[3];
-        nft.deploy(wasm, contractAccountId, 0, "", "", "", "");
+        const contractAccountId = process.argv[2] + (new Date()).getTime() + "-" + process.env.CREATOR_ACCOUNT_ID;
+        const depositAmount = process.argv[3];
+        await nft.createAccount(contractAccountId, depositAmount);
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);
