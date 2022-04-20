@@ -1,11 +1,12 @@
 #!/bin/bash
-path="$(
+projectPath="$(
   cd "$(dirname "$1")"
   pwd -P
 )/$(basename "$1")"
-build="contracts/goods/environments"
-#echo $path
+
+buildPath="contracts/goods/environments"
+#echo $projectPath
 set -e &&
-  RUSTFLAGS='-C link-arg=-s' cargo build --manifest-path=$path/contracts/goods/environments/Cargo.toml --target wasm32-unknown-unknown --release &&
-  mkdir -p $path/compilers/$build &&
-  cp $path/$build/target/wasm32-unknown-unknown/release/*.wasm $path/compilers/$build/
+  RUSTFLAGS='-C link-arg=-s' cargo buildPath --manifest-projectPath=$projectPath/$buildPath/Cargo.toml --target wasm32-unknown-unknown --release &&
+  mkdir -p $projectPath/compilers/$buildPath &&
+  cp $projectPath/$buildPath/target/wasm32-unknown-unknown/release/*.wasm $projectPath/compilers/$buildPath/
