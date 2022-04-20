@@ -24,7 +24,7 @@ class EnvironmentNFT {
         const publicKey = keyPair.publicKey.toString();
 
         const newAccount = await creatorAccount.functionCall({
-            contractId: "testnet",
+            contractId: this.network,
             methodName: "create_account",
             args: {
                 new_account_id: newAccountId,
@@ -65,6 +65,7 @@ class EnvironmentNFT {
         console.log("contractAccountID:", contractAccountID);
         try {
             await this.createAccount(contractAccountID, depositAmountContract)
+            return;
             const contractAccount = await this.near.account(contractAccountID);
             console.log("create success contract account:", contractAccount);
             const response = await contractAccount.deployContract(fs.readFileSync(wasmFile));
