@@ -6,6 +6,7 @@ for i in $rust_files; do
   parentdir="$(dirname "$dir_path")"
   echo $parentdir
 
+  echo "\n\n\n\n\n ************************************"
   rm -rf $parentdir/target
   echo "rm -rf $parentdir/target"
   sh $parentdir/build.sh
