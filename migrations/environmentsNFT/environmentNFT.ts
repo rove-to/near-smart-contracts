@@ -75,11 +75,11 @@ class EnvironmentNFT {
     }
 
     async init(adminID: string, operatorID: string, price: number, tokenMetadata: any) {
-
+        // call contract method
     }
 
     async createNFT(receiverID: string) {
-
+        // call contract method
     }
 }
 
