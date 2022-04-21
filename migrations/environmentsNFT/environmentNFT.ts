@@ -68,14 +68,27 @@ class EnvironmentNFT {
             console.log("deploy on:", response.transaction.hash);
 
             // call init func
-            await this.init(adminID, operatorID, price, tokenMetadata);
+            await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, price, tokenMetadata);
         } catch (e) {
             console.log(e);
         }
     }
 
-    async init(adminID: string, operatorID: string, price: number, tokenMetadata: any) {
-        // call contract method
+    async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string, price: number, tokenMetadata: any) {
+        const contract = new nearAPI.Contract(account, contractAccountId, {
+            viewMethods: ['nft_metadata'],
+            changeMethods: ['new'],
+        });
+        const args = {
+            admin_id: adminId,
+            operator_id: operatorId,
+            treasury_id: treasuryId,
+            max_supply: 20,
+            metadata: {spec: "nft-1.0.0", name: "rove-nft", symbol : "ROVE-NFT"},
+            token_price: 1,
+            token_metadata: tokenMetadata
+        };
+        await contract.new(args, "300000000000000");
     }
 
     async createNFT(receiverID: string) {
