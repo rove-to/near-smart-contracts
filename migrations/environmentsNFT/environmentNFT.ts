@@ -56,7 +56,8 @@ class EnvironmentNFT {
         }
     }
 
-    async deploy(wasmFile: string, contractAccountID: string, price: number, tokenMetadata: any, adminID: string, operatorID: string, treasuryID: string) {
+    async deploy(wasmFile: string, contractAccountID: string, price: any, tokenMetadata: any,
+                 adminID: string, operatorID: string, treasuryID: string, maxSupply: any, contractMetadata: any) {
         console.log("wasm: ", wasmFile);
         this.near = await connect(this.config);
 
@@ -68,13 +69,15 @@ class EnvironmentNFT {
             console.log("deploy on:", response.transaction.hash);
 
             // call init func
-            await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, price, tokenMetadata);
+            await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, price, tokenMetadata, maxSupply, contractMetadata);
         } catch (e) {
             console.log(e);
         }
     }
 
-    async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string, price: number, tokenMetadata: any) {
+    async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string, price: any,
+               tokenMetadata: any, maxSupply: number
+               , contractMetadata: any) {
         const contract = new nearAPI.Contract(account, contractAccountId, {
             viewMethods: ['nft_metadata'],
             changeMethods: ['new'],
@@ -83,9 +86,9 @@ class EnvironmentNFT {
             admin_id: adminId,
             operator_id: operatorId,
             treasury_id: treasuryId,
-            max_supply: 20,
-            metadata: {spec: "nft-1.0.0", name: "rove-nft", symbol: "ROVE-NFT"},
-            token_price: 1,
+            max_supply: Number(maxSupply),
+            metadata: contractMetadata,
+            token_price: Number(utils.format.parseNearAmount(price)),
             token_metadata: tokenMetadata
         };
         console.log(args);
@@ -102,13 +105,13 @@ class EnvironmentNFT {
                 changeMethods: ["nft_create"]
             });
 
-            await contract.nft_create({
-                args: {
+            await contract.nft_create(
+                {
                     receiver_id: receiverId
                 },
-                gas: "300000000000000",
-                amount: utils.format.parseNearAmount(attachedDeposit)
-            });
+                "300000000000000",
+                 utils.format.parseNearAmount(attachedDeposit)
+            );
         } catch (e) {
             console.log(e);
         }
