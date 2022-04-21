@@ -18,7 +18,7 @@ NOTES:
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
-use near_contract_standards::non_fungible_token::{NonFungibleToken};
+use near_contract_standards::non_fungible_token::{NonFungibleToken, refund_deposit_to_account};
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedMap};
@@ -145,6 +145,19 @@ impl Contract {
     pub fn change_treasury(&mut self, new_treasury_id: AccountId) {
         self.assert_admin_only();
         self.treasury_id = new_treasury_id.into();
+    }
+
+    #[payable]
+    pub fn update_royalties(&mut self, updated_royalties: HashMap<AccountId, u16>) {
+        self.assert_admin_only();
+        let initial_storage_usage = env::storage_usage();
+        self.royalties.clear();
+        for (account, amount) in updated_royalties {
+            self.royalties.insert(&account, &amount);
+        }
+        if env::storage_usage() > initial_storage_usage {
+            refund_deposit_to_account(env::storage_usage() - initial_storage_usage, env::predecessor_account_id());
+        }
     }
 
     pub fn get_admin(self) -> AccountId {
