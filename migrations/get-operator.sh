@@ -1,1 +1,0 @@
-near view $NFT_CONTRACT_ID get_operator
