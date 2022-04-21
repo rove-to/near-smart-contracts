@@ -77,7 +77,7 @@ impl Contract {
         treasury_id: AccountId,
         max_supply: u64,
         metadata: NFTContractMetadata,
-        token_price_in_string: string,
+        token_price_in_string: String,
         token_metadata: TokenMetadata,
         init_royalties: Option<HashMap<AccountId, u16>>,
     ) -> Self {
