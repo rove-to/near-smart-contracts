@@ -229,11 +229,11 @@ impl Contract {
         let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
 
         require!(
-            env::attached_deposit() >= required_storage_cost + price,
+            env::attached_deposit() >= price,
             "NOT ATTACHING ENOUGH DEPOSIT"
         );
 
-        if !is_operator_mint {
+        if !is_operator_mint && env::attached_deposit() > required_storage_cost {
             Promise::new(self.treasury_id.clone())
                 .transfer(env::attached_deposit() - required_storage_cost);
         }
