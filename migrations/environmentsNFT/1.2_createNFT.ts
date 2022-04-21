@@ -18,7 +18,7 @@ import {EnvironmentNFT} from "./environmentNFT";
         const attachedDeposit = process.argv[5];
 
         console.log({contractAccountId, signerId, receiverId, attachedDeposit});
-        if (!!contractAccountId || !signerId || !receiverId || !attachedDeposit) {
+        if (!contractAccountId || !signerId || !receiverId || !attachedDeposit) {
             throw new Error("invalid arguments")
         }
 

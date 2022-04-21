@@ -18,10 +18,9 @@ import * as fs from "fs";
         const tokenMetadataFile = process.argv[4];
         const tokenMetadata = JSON.parse((await fs.readFileSync(tokenMetadataFile)).toString());
         console.log(process.env);
-        const adminId = process.argv[4] || process.env.ADMIN_ID || "";
-        const operatorId = process.argv[5] || process.env.OPERATOR_ID || "";
-        const treasuryId = process.argv[6] || process.env.TREASURY_ID || "";
-        console.log(tokenMetadata);
+        const adminId = process.argv[5] || process.env.ADMIN_ID || "";
+        const operatorId = process.argv[6] || process.env.OPERATOR_ID || "";
+        const treasuryId = process.argv[7] || process.env.TREASURY_ID || "";
         await nft.deploy(wasm, contractAccountId, 0, tokenMetadata, adminId, operatorId, treasuryId);
         console.log("Deployed contract on contractAccountId:", contractAccountId)
     } catch (e) {

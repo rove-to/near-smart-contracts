@@ -88,7 +88,8 @@ class EnvironmentNFT {
             token_price: 1,
             token_metadata: tokenMetadata
         };
-        await contract.new(args, "300000000000000");
+        console.log(args);
+        await contract.new({args, gas: "300000000000000"});
     }
 
     async createNFT(contractAccountId: string, signerId: string, receiverId: string, attachedDeposit: string) {
@@ -101,13 +102,13 @@ class EnvironmentNFT {
                 changeMethods: ["nft_create"]
             });
 
-            await contract.nft_create(
-                {
+            await contract.nft_create({
+                args: {
                     receiver_id: receiverId
                 },
-                "300000000000000",
-                attachedDeposit
-            );
+                gas: "300000000000000",
+                amount: utils.format.parseNearAmount(attachedDeposit)
+            });
         } catch (e) {
             console.log(e);
         }
