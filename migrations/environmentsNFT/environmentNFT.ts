@@ -57,7 +57,9 @@ class EnvironmentNFT {
     }
 
     async deploy(wasmFile: string, contractAccountID: string, price: any, tokenMetadata: any,
-                 adminID: string, operatorID: string, treasuryID: string, maxSupply: any, contractMetadata: any) {
+                 adminID: string, operatorID: string, treasuryID: string, maxSupply: any, contractMetadata: any,
+                 isRunInit: boolean
+    ) {
         console.log("wasm: ", wasmFile);
         this.near = await connect(this.config);
 
@@ -68,16 +70,18 @@ class EnvironmentNFT {
             const response = await contractAccount.deployContract(fs.readFileSync(wasmFile));
             console.log("deploy on:", response.transaction.hash);
 
-            // call init func
-            await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, price, tokenMetadata, maxSupply, contractMetadata);
+            if (isRunInit) {
+                // call init func
+                await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, price, tokenMetadata,
+                    maxSupply, contractMetadata);
+            }
         } catch (e) {
             console.log(e);
         }
     }
 
     async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string, price: any,
-               tokenMetadata: any, maxSupply: number
-               , contractMetadata: any) {
+               tokenMetadata: any, maxSupply: number, contractMetadata: any) {
         const contract = new nearAPI.Contract(account, contractAccountId, {
             viewMethods: ['nft_metadata'],
             changeMethods: ['new'],
@@ -88,7 +92,7 @@ class EnvironmentNFT {
             treasury_id: treasuryId,
             max_supply: Number(maxSupply),
             metadata: contractMetadata,
-            token_price: Number(utils.format.parseNearAmount(price)),
+            token_price_in_string: utils.format.parseNearAmount(price),
             token_metadata: tokenMetadata
         };
         console.log(args);
@@ -110,7 +114,7 @@ class EnvironmentNFT {
                     receiver_id: receiverId
                 },
                 "300000000000000",
-                 utils.format.parseNearAmount(attachedDeposit)
+                utils.format.parseNearAmount(attachedDeposit)
             );
         } catch (e) {
             console.log(e);

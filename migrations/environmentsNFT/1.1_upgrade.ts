@@ -26,8 +26,8 @@ import {enums} from "near-api-js/lib/utils";
         const contractMetadataFile = process.argv[10];
         const contractMetadata = JSON.parse((await fs.readFileSync(contractMetadataFile)).toString());
         await nft.deploy(wasm, contractAccountId, tokenPrice, tokenMetadata, adminId, operatorId, treasuryId, maxSupply, contractMetadata,
-            true);
-        console.log("Deployed contract on contractAccountId:", contractAccountId)
+            false);
+        console.log("Upgraded contract on contractAccountId:", contractAccountId)
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);
