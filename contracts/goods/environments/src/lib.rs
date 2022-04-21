@@ -77,12 +77,23 @@ impl Contract {
         treasury_id: AccountId,
         max_supply: u64,
         metadata: NFTContractMetadata,
-        token_price: u128,
+        token_price_in_string: string,
         token_metadata: TokenMetadata,
         init_royalties: Option<HashMap<AccountId, u16>>,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
+
+        let token_price: u128;
+        match u128::from_str_radix(&token_price_in_string, 10) {
+            Ok(val) => {
+                token_price = val;
+            }
+            Err(_e) => {
+                env::panic_str("error when parse price_in_string to u128");
+            }
+        }
+
         let mut royalties = UnorderedMap::new(StorageKey::Royalties);
         if let Some(init_royalties) = init_royalties {
             for (account, amount) in init_royalties {
