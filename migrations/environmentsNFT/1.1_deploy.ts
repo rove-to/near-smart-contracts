@@ -4,6 +4,7 @@ dotenv.config();
 
 import {EnvironmentNFT} from "./environmentNFT";
 import * as fs from "fs";
+import {enums} from "near-api-js/lib/utils";
 
 (async () => {
     try {
@@ -17,11 +18,14 @@ import * as fs from "fs";
         const contractAccountId = process.argv[3];
         const tokenMetadataFile = process.argv[4];
         const tokenMetadata = JSON.parse((await fs.readFileSync(tokenMetadataFile)).toString());
-        console.log(process.env);
         const adminId = process.argv[5] || process.env.ADMIN_ID || "";
         const operatorId = process.argv[6] || process.env.OPERATOR_ID || "";
         const treasuryId = process.argv[7] || process.env.TREASURY_ID || "";
-        await nft.deploy(wasm, contractAccountId, 0, tokenMetadata, adminId, operatorId, treasuryId);
+        const tokenPrice = process.argv[8] || process.env.TOKEN_PRICE || 0;
+        const maxSupply = process.argv[9] || process.env.TOKEN_PRICE || 0;
+        const contractMetadataFile = process.argv[10];
+        const contractMetadata = JSON.parse((await fs.readFileSync(contractMetadataFile)).toString());
+        await nft.deploy(wasm, contractAccountId, tokenPrice, tokenMetadata, adminId, operatorId, treasuryId, maxSupply, contractMetadata);
         console.log("Deployed contract on contractAccountId:", contractAccountId)
     } catch (e) {
         // Deal with the fact the chain failed
