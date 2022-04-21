@@ -17,7 +17,6 @@ import * as fs from "fs";
         const contractAccountId = process.argv[3];
         const tokenMetadataFile = process.argv[4];
         const tokenMetadata = JSON.parse((await fs.readFileSync(tokenMetadataFile)).toString());
-        console.log(process.env);
         const adminId = process.argv[5] || process.env.ADMIN_ID || "";
         const operatorId = process.argv[6] || process.env.OPERATOR_ID || "";
         const treasuryId = process.argv[7] || process.env.TREASURY_ID || "";
