@@ -84,15 +84,7 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
 
-        let token_price: u128;
-        match u128::from_str_radix(&token_price_in_string, 10) {
-            Ok(val) => {
-                token_price = val;
-            }
-            Err(_e) => {
-                env::panic_str("error when parse price_in_string to u128");
-            }
-        }
+        let token_price: u128 = str_to_u128(token_price_in_string);
 
         let mut royalties = UnorderedMap::new(StorageKey::Royalties);
         if let Some(init_royalties) = init_royalties {
@@ -242,9 +234,13 @@ impl Contract {
     }
 
     #[payable]
-    pub fn update_token_price(&mut self, updated_price: u128) {
+    pub fn update_token_price(&mut self, updated_price_in_string: string) {
         self.assert_operator_only();
-        self.token_price = updated_price;
+        self.token_price = str_to_u128(updated_price_in_string);
+    }
+
+    pub fn get_token_price(self) -> u128 {
+        self.token_price
     }
 
     // update default token_metadata
@@ -267,6 +263,20 @@ impl Contract {
         } else {
             env::panic_str("token_metadata_by_id is null");
         }
+    }
+
+    #[payable]
+    pub fn update_contract_metadata(&mut self, updated_contract_metadata: NFTContractMetadata) {
+        self.assert_operator_only();
+        self.metadata.set(&updated_contract_metadata);
+    }
+
+    pub fn get_current_supply(self) -> u64 {
+        self.max_supply - self.tokens.tokens_per_owner.len()
+    }
+
+    pub fn get_max_supply(self) -> u64 {
+        self.max_supply
     }
 }
 
