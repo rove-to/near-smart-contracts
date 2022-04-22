@@ -120,6 +120,157 @@ class EnvironmentNFT {
             console.log(e);
         }
     }
+
+    async get(method: string, contractAccountId: string, signerId: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: ["get_admin"],
+                changeMethods: []
+            });
+            const response = await contract.get_admin({});
+            return response;
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async setAdmin(contractAccountId: string, signerId: string, newAdminId: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['change_admin']
+            });
+            const response = await contract.change_admin({
+                args: {
+                    new_admin_id: newAdminId
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async changeOperator(contractAccountId: string, signerId: string, newOperatorId: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['change_operator']
+            });
+            const response = await contract.change_operator({
+                args: {
+                    new_operator_id: newOperatorId
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async changeTreasury(contractAccountId: string, signerId: string, newTreasuryId: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['change_treasury']
+            });
+            const response = await contract.change_treasury({
+                args: {
+                    new_treasury_id: newTreasuryId
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async updateTokenPrice(contractAccountId: string, signerId: string, newTokenPrice: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['update_token_price']
+            });
+            const response = await contract.update_token_price({
+                args: {
+                    updated_price_in_string: utils.format.parseNearAmount(newTokenPrice)
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async updateTokenMetadata(contractAccountId: string, signerId: string, newTokenMetadata: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['update_token_metadata']
+            });
+            const response = await contract.update_token_metadata({
+                args: {
+                    updated_token_metadata: newTokenMetadata
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async updateMintedTokenMetadata(contractAccountId: string, signerId: string, tokenId: string, newTokenMetadata: any) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['update_minted_token_metadata']
+            });
+            const response = await contract.update_minted_token_metadata({
+                args: {
+                    updated_token_metadata: newTokenMetadata,
+                    token_id: tokenId
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async updateContractMetadata(contractAccountId: string, signerId: string, newContractMetadata : any) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['update_contract_metadata']
+            });
+            const response = await contract.update_contract_metadata({
+                args: {
+                    updated_contract_metadata: newContractMetadata,
+                },
+                amount: "1"
+            });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+
 }
 
 export {
