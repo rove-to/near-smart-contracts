@@ -270,7 +270,27 @@ class EnvironmentNFT {
         }
     }
 
-
+    async updateRoyalties(contractAccountId: string, signerId: string, royaltyId : string, royaltyAmount: number) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ['update_royalties']
+            });
+            const updated_royalties = {};
+            updated_royalties[royaltyId] = royaltyAmount;
+            const response = await contract.update_royalties({
+                args: {
+                    updated_royalties
+                },
+                amount: "1"
+            });
+            console.log(response);
+        } catch (e) {
+            console.log(e);
+        }
+    }
 }
 
 export {
