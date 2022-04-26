@@ -220,7 +220,7 @@ impl Contract {
 
         let price: u128 = if is_operator_mint { 0 } else { token_price };
 
-        let token_id = gen_token_id(&nft_type_id, &token_minted);
+        let token_id = gen_token_id(&nft_type_id, &(token_minted + 1));
         let token = self.tokens.internal_mint_with_refund(
             token_id.clone(),
             receiver_id.clone(),
