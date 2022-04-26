@@ -18,10 +18,11 @@ NOTES:
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
-use near_contract_standards::non_fungible_token::{NonFungibleToken, refund_deposit_to_account};
+use near_contract_standards::non_fungible_token::{refund_deposit_to_account, NonFungibleToken};
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedMap};
+use near_sdk::json_types::U128;
 use near_sdk::{
     assert_one_yocto, env, near_bindgen, require, AccountId, Balance, BorshStorageKey,
     PanicOnDefault, Promise, PromiseOrValue,
@@ -41,6 +42,7 @@ mod types;
 const ONE_HUNDRED_PERCENT_IN_BPS: u16 = 10_000;
 pub const NFT_METADATA_SPEC: &str = "1.0.0";
 pub const NFT_STANDARD_NAME: &str = "nep171";
+pub const NOT_FOUND_NFT_TYPE_ID_ERROR: &str = "Not found nft_type_id";
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -51,11 +53,12 @@ pub struct Contract {
     pub admin_id: AccountId,
     pub operator_id: AccountId,
     pub treasury_id: AccountId,
-    pub royalties: UnorderedMap<AccountId, u16>,
+    pub royalties: UnorderedMap<String, HashMap<AccountId, u16>>,
 
-    pub max_supply: u64,
-    pub token_price: u128,
-    pub token_metadata: TokenMetadata,
+    pub max_supplies: UnorderedMap<String, u64>,
+    pub tokens_price: UnorderedMap<String, u128>,
+    pub tokens_metadata: UnorderedMap<String, TokenMetadata>,
+    pub tokens_minted: UnorderedMap<String, u64>,
 }
 
 #[derive(BorshSerialize, BorshStorageKey)]
@@ -65,6 +68,10 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     Approval,
+    MaxSupplies,
+    TokensPrice,
+    TokensMetadata,
+    TokensMinted,
     Royalties,
 }
 
@@ -75,31 +82,19 @@ impl Contract {
         admin_id: AccountId,
         operator_id: AccountId,
         treasury_id: AccountId,
-        max_supply: u64,
         metadata: NFTContractMetadata,
-        token_price_in_string: String,
-        token_metadata: TokenMetadata,
-        init_royalties: Option<HashMap<AccountId, u16>>,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
 
-        let token_price: u128 = str_to_u128(token_price_in_string);
-
-        let mut royalties = UnorderedMap::new(StorageKey::Royalties);
-        if let Some(init_royalties) = init_royalties {
-            for (account, amount) in init_royalties {
-                royalties.insert(&account, &amount);
-            }
-        }
         Self {
             admin_id: admin_id.into(),
             operator_id: operator_id.clone().into(),
             treasury_id: treasury_id.into(),
-            royalties,
-            max_supply,
-            token_price,
-            token_metadata,
+            royalties: UnorderedMap::new(StorageKey::Royalties),
+            max_supplies: UnorderedMap::new(StorageKey::MaxSupplies),
+            tokens_price: UnorderedMap::new(StorageKey::TokensPrice),
+            tokens_metadata: UnorderedMap::new(StorageKey::TokensMetadata),
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
                 operator_id.clone().into(),
@@ -108,6 +103,7 @@ impl Contract {
                 Some(StorageKey::Approval),
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
+            tokens_minted: UnorderedMap::new(StorageKey::TokensMinted),
         }
     }
 
@@ -151,15 +147,19 @@ impl Contract {
     }
 
     #[payable]
-    pub fn update_royalties(&mut self, updated_royalties: HashMap<AccountId, u16>) {
+    pub fn update_royalties(
+        &mut self,
+        nft_type_id: String,
+        updated_royalties: HashMap<AccountId, u16>,
+    ) {
         self.assert_admin_only();
         let initial_storage_usage = env::storage_usage();
-        self.royalties.clear();
-        for (account, amount) in updated_royalties {
-            self.royalties.insert(&account, &amount);
-        }
+        self.royalties.insert(&nft_type_id, &updated_royalties);
         if env::storage_usage() > initial_storage_usage {
-            refund_deposit_to_account(env::storage_usage() - initial_storage_usage, env::predecessor_account_id());
+            refund_deposit_to_account(
+                env::storage_usage() - initial_storage_usage,
+                env::predecessor_account_id(),
+            );
         }
     }
 
@@ -176,32 +176,72 @@ impl Contract {
     }
 
     #[payable]
-    pub fn nft_create(&mut self, receiver_id: AccountId) -> Token {
-        require!(
-            self.tokens.owner_by_id.len() < self.max_supply,
-            "REACH MAX SUPPLY"
-        );
+    pub fn create_nft(
+        &mut self,
+        nft_type_id: String,
+        price: U128,
+        token_metadata: TokenMetadata,
+        max_supply: u64,
+    ) {
+        self.assert_operator_only();
+        let price_u128 = u128::from(price);
+        self.tokens_price.insert(&nft_type_id, &price_u128);
+        self.tokens_metadata.insert(&nft_type_id, &token_metadata);
+        self.max_supplies.insert(&nft_type_id, &max_supply);
+        self.tokens_minted.insert(&nft_type_id, &0);
+        self.royalties.insert(&nft_type_id, &HashMap::new());
+    }
+
+    #[payable]
+    pub fn user_mint(&mut self, nft_type_id: String, receiver_id: AccountId) -> Token {
+        let initial_storage_usage = env::storage_usage();
+        let max_supply = self
+            .max_supplies
+            .get(&nft_type_id)
+            .expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        let token_metadata = self
+            .tokens_metadata
+            .get(&nft_type_id)
+            .expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        let token_price = self
+            .tokens_price
+            .get(&nft_type_id)
+            .expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        let token_minted = self
+            .tokens_minted
+            .get(&nft_type_id)
+            .expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        require!(token_minted < max_supply, "REACH MAX SUPPLY");
         let mut is_operator_mint = false;
         if env::predecessor_account_id() == self.operator_id {
             self.assert_operator_only();
             is_operator_mint = true;
         }
 
-        let initial_storage_usage = env::storage_usage();
+        let price: u128 = if is_operator_mint { 0 } else { token_price };
 
-        let price: u128 = if is_operator_mint {
-            0
-        } else {
-            self.token_price
-        };
-
-        let token_id = self.tokens.owner_by_id.len().to_string();
+        let token_id = gen_token_id(&nft_type_id, &token_minted);
         let token = self.tokens.internal_mint_with_refund(
             token_id.clone(),
             receiver_id.clone(),
-            Some(self.token_metadata.clone()),
+            Some(token_metadata.clone()),
             None,
         );
+
+        self.tokens_minted.insert(&nft_type_id, &(token_minted + 1));
+
+        let storage_used = env::storage_usage() - initial_storage_usage;
+        let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
+
+        require!(
+            env::attached_deposit() >= price,
+            "NOT ATTACHING ENOUGH DEPOSIT"
+        );
+
+        if !is_operator_mint && env::attached_deposit() > required_storage_cost {
+            Promise::new(self.treasury_id.clone())
+                .transfer(env::attached_deposit() - required_storage_cost);
+        }
 
         // Construct the mint log as per the events standard.
         let nft_mint_log: EventLog = EventLog {
@@ -217,37 +257,33 @@ impl Contract {
         // Log the serialized json.
         env::log_str(&nft_mint_log.to_string());
 
-        let storage_used = env::storage_usage() - initial_storage_usage;
-        let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
-
-        require!(
-            env::attached_deposit() >= price,
-            "NOT ATTACHING ENOUGH DEPOSIT"
-        );
-
-        if !is_operator_mint && env::attached_deposit() > required_storage_cost {
-            Promise::new(self.treasury_id.clone())
-                .transfer(env::attached_deposit() - required_storage_cost);
-        }
-
         token
     }
 
     #[payable]
-    pub fn update_token_price(&mut self, updated_price_in_string: string) {
+    pub fn update_token_price(&mut self, nft_type_id: String, updated_price: U128) {
         self.assert_operator_only();
-        self.token_price = str_to_u128(updated_price_in_string);
+        let price_u128 = u128::from(updated_price);
+        self.tokens_price.insert(&nft_type_id, &price_u128);
     }
 
-    pub fn get_token_price(self) -> u128 {
-        self.token_price
+    pub fn get_token_price(self, nft_type_id: String) -> u128 {
+        let price = self
+            .tokens_price
+            .get(&nft_type_id)
+            .expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        price
     }
 
     // update default token_metadata
     #[payable]
-    pub fn update_token_metadata(&mut self, updated_token_metadata: TokenMetadata) {
+    pub fn update_token_metadata(
+        &mut self,
+        nft_type_id: String,
+        updated_token_metadata: TokenMetadata,
+    ) {
         self.assert_operator_only();
-        self.token_metadata = updated_token_metadata;
+        self.tokens_metadata.insert(&nft_type_id, &updated_token_metadata);
     }
 
     // update token_metadata of a minted token
@@ -271,12 +307,14 @@ impl Contract {
         self.metadata.set(&updated_contract_metadata);
     }
 
-    pub fn get_current_supply(self) -> u64 {
-        self.max_supply - self.tokens.tokens_per_owner.len()
+    pub fn get_current_supply(self, nft_type_id : String) -> u64 {
+        let max_supply = self.max_supplies.get(&nft_type_id).expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        let token_minted = self.tokens_minted.get(&nft_type_id).expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+        max_supply - token_minted
     }
 
-    pub fn get_max_supply(self) -> u64 {
-        self.max_supply
+    pub fn get_max_supply(self, nft_type_id: String) -> u64 {
+        self.max_supplies.get(&nft_type_id).expect(NOT_FOUND_NFT_TYPE_ID_ERROR)
     }
 }
 

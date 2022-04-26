@@ -22,6 +22,14 @@ pub trait NonFungibleTokenRoyalty {
 impl NonFungibleTokenRoyalty for Contract {
     //calculates the payout for a token given the passed in balance. This is a view method
     fn nft_payout(&self, token_id: TokenId, balance: U128, max_len_payout: u32) -> Payout {
+        // token id has format {nft_type_id}:{token_count}
+        let token_id_parts : Vec<&str> = token_id.split(':').collect();
+
+        require!(token_id_parts.len() == 2, "token_id has wrong format");
+
+        let nft_type_id_str = token_id_parts.get(0).expect("token_id has wrong format");
+        let nft_type_id = format!("{nft_type_id_str}");
+
         let token_owner_id = self.tokens.owner_by_id.get(&token_id).expect("token not exist");
         //keep track of the total perpetual royalties
         let mut total_perpetual : u16 = 0;
@@ -31,18 +39,21 @@ impl NonFungibleTokenRoyalty for Contract {
         let mut payout_object = Payout {
             payout: HashMap::new()
         };
+
+        let royalties = self.royalties.get(&nft_type_id).expect(NOT_FOUND_NFT_TYPE_ID_ERROR);
+
         //get the royalty object from token
         //make sure we're not paying out to too many people (GAS limits this)
-        assert!(self.royalties.len() as u32 <= max_len_payout, "Market cannot payout to that many receivers");
+        assert!(royalties.len() as u32 <= max_len_payout, "Market cannot payout to that many receivers");
 
         //go through each key and value in the royalty object
-        for (k, v) in self.royalties.iter() {
+        for (k, v) in royalties.iter() {
             //get the key
             let key = k.clone();
             //only insert into the payout if the key isn't the token owner (we add their payout at the end)
             if key != token_owner_id {
                 //
-                payout_object.payout.insert(key, royalty_to_payout(v, balance_u128));
+                payout_object.payout.insert(key, royalty_to_payout(*v, balance_u128));
                 total_perpetual += v;
             }
         }
