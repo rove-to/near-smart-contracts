@@ -12,6 +12,6 @@ pub(crate) fn assert_at_least_one_yocto() {
 }
 
 pub(crate) fn gen_token_id(nft_type_id: &String, token_count: &u64) -> String {
-    let token_id = format!("{nft_type_id}:{token_count}");
+    let token_id = format!("{}:{}", nft_type_id, token_count);
     token_id
 }

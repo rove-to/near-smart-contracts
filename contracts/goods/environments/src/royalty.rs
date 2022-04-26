@@ -1,5 +1,6 @@
 use near_contract_standards::non_fungible_token::core::NonFungibleTokenCore;
 use near_sdk::json_types::U128;
+
 use crate::*;
 
 pub trait NonFungibleTokenRoyalty {
@@ -23,16 +24,16 @@ impl NonFungibleTokenRoyalty for Contract {
     //calculates the payout for a token given the passed in balance. This is a view method
     fn nft_payout(&self, token_id: TokenId, balance: U128, max_len_payout: u32) -> Payout {
         // token id has format {nft_type_id}:{token_count}
-        let token_id_parts : Vec<&str> = token_id.split(':').collect();
+        let token_id_parts: Vec<&str> = token_id.split(':').collect();
 
         require!(token_id_parts.len() == 2, "token_id has wrong format");
 
         let nft_type_id_str = token_id_parts.get(0).expect("token_id has wrong format");
-        let nft_type_id = format!("{nft_type_id_str}");
+        let nft_type_id = format!("{}", nft_type_id_str);
 
         let token_owner_id = self.tokens.owner_by_id.get(&token_id).expect("token not exist");
         //keep track of the total perpetual royalties
-        let mut total_perpetual : u16 = 0;
+        let mut total_perpetual: u16 = 0;
         //get the u128 version of the passed in balance (which was U128 before)
         let balance_u128 = u128::from(balance);
         //keep track of the payout object to send back
