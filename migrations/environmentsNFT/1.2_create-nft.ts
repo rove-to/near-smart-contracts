@@ -17,10 +17,10 @@ import * as fs from "fs";
         const signerId = process.argv[3];
         const nftTypeId = process.argv[4];
         const price = process.argv[5];
-        const tokenMetadataFile = process.argv[7];
+        const tokenMetadataFile = process.argv[6];
         const tokenMetadata = JSON.parse((await fs.readFileSync(tokenMetadataFile)).toString());
-        const maxSupply = parseInt(process.argv[8]);
-        const attachedDeposit = process.argv[9];
+        const maxSupply = parseInt(process.argv[7]);
+        const attachedDeposit = process.argv[8];
 
         console.log({contractAccountId, signerId});
         if (!contractAccountId || !signerId) {
