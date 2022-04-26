@@ -25,7 +25,7 @@ import {enums} from "near-api-js/lib/utils";
         const maxSupply = process.argv[9] || process.env.TOKEN_PRICE || 0;
         const contractMetadataFile = process.argv[10];
         const contractMetadata = JSON.parse((await fs.readFileSync(contractMetadataFile)).toString());
-        await nft.deploy(wasm, contractAccountId, tokenPrice, tokenMetadata, adminId, operatorId, treasuryId, maxSupply, contractMetadata,
+        await nft.deploy(wasm, contractAccountId, adminId, operatorId, treasuryId, contractMetadata,
             false);
         console.log("Upgraded contract on contractAccountId:", contractAccountId)
     } catch (e) {

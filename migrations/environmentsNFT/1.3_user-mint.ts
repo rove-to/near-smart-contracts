@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import {EnvironmentNFT} from "./environmentNFT";
+import * as fs from "fs";
 
 (async () => {
     try {
@@ -14,17 +15,18 @@ import {EnvironmentNFT} from "./environmentNFT";
 
         const contractAccountId = process.argv[2];
         const signerId = process.argv[3];
-        const receiverId = process.argv[4];
-        const attachedDeposit = process.argv[5];
+        const nftTypeId = process.argv[4];
+        const receiverId = process.argv[5];
+        const attachedDeposit = process.argv[6];
 
-        console.log({contractAccountId, signerId, receiverId, attachedDeposit});
-        if (!contractAccountId || !signerId || !receiverId || !attachedDeposit) {
+        console.log({contractAccountId, signerId});
+        if (!contractAccountId || !signerId) {
             throw new Error("invalid arguments")
         }
 
-        await nft.createNFT(contractAccountId, signerId, receiverId, attachedDeposit);
+        await nft.userMint(contractAccountId, signerId, nftTypeId, receiverId, attachedDeposit);
 
-        console.log("Created nft", {contractAccountId, signerId, receiverId, attachedDeposit});
+        console.log("User mint nft", {contractAccountId, signerId});
     } catch (e) {
         // Deal with the fact the chain failed
         console.log(e);

@@ -56,8 +56,8 @@ class EnvironmentNFT {
         }
     }
 
-    async deploy(wasmFile: string, contractAccountID: string, price: any, tokenMetadata: any,
-                 adminID: string, operatorID: string, treasuryID: string, maxSupply: any, contractMetadata: any,
+    async deploy(wasmFile: string, contractAccountID: string,
+                 adminID: string, operatorID: string, treasuryID: string, contractMetadata: any,
                  isRunInit: boolean
     ) {
         console.log("wasm: ", wasmFile);
@@ -72,16 +72,14 @@ class EnvironmentNFT {
 
             if (isRunInit) {
                 // call init func
-                await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, price, tokenMetadata,
-                    maxSupply, contractMetadata);
+                await this.init(contractAccountID, contractAccount, adminID, operatorID, treasuryID, contractMetadata);
             }
         } catch (e) {
             console.log(e);
         }
     }
 
-    async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string, price: any,
-               tokenMetadata: any, maxSupply: number, contractMetadata: any) {
+    async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string, contractMetadata: any) {
         const contract = new nearAPI.Contract(account, contractAccountId, {
             viewMethods: ['nft_metadata'],
             changeMethods: ['new'],
@@ -90,27 +88,50 @@ class EnvironmentNFT {
             admin_id: adminId,
             operator_id: operatorId,
             treasury_id: treasuryId,
-            max_supply: Number(maxSupply),
             metadata: contractMetadata,
-            token_price_in_string: utils.format.parseNearAmount(price),
-            token_metadata: tokenMetadata
         };
         console.log(args);
         await contract.new({args, gas: "300000000000000"});
     }
 
-    async createNFT(contractAccountId: string, signerId: string, receiverId: string, attachedDeposit: string) {
+    async createNft(contractAccountId: string, signerId: string, nftTypeId: string, price: string, token_metadata: any, max_supply: number, attachedDeposit: string) {
         this.near = await connect(this.config);
         console.log({contractAccountId});
         try {
             const signerAccount = await this.near.account(signerId);
             const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
                 viewMethods: [],
-                changeMethods: ["nft_create"]
+                changeMethods: ["create_nft"]
             });
 
-            await contract.nft_create(
+            await contract.create_nft(
                 {
+                    nft_type_id : nftTypeId,
+                    price: utils.format.parseNearAmount(price),
+                    token_metadata,
+                    max_supply
+                },
+                "300000000000000",
+                utils.format.parseNearAmount(attachedDeposit)
+            );
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async userMint(contractAccountId: string, signerId: string, nftTypeId: string, receiverId: string, attachedDeposit: string) {
+        this.near = await connect(this.config);
+        console.log({contractAccountId});
+        try {
+            const signerAccount = await this.near.account(signerId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
+                viewMethods: [],
+                changeMethods: ["user_mint"]
+            });
+
+            await contract.user_mint(
+                {
+                    nft_type_id : nftTypeId,
                     receiver_id: receiverId
                 },
                 "300000000000000",
