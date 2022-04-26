@@ -14,15 +14,16 @@ import * as fs from 'fs';
 
         const contractAccountId = process.argv[2];
         const signerId = process.argv[3];
-        const royaltyId = process.argv[4];
-        const royaltyAmount = parseInt(process.argv[5]);
+        const nftTypeId = process.argv[4];
+        const royaltyId = process.argv[5];
+        const royaltyAmount = parseInt(process.argv[6]);
 
-        console.log({contractAccountId, signerId, royaltyId, royaltyAmount});
+        console.log({contractAccountId, signerId, nftTypeId, royaltyId, royaltyAmount});
         if (!contractAccountId || !signerId ) {
             throw new Error("invalid arguments")
         }
 
-        const result = await nft.updateRoyalties(contractAccountId, signerId, royaltyId, royaltyAmount);
+        const result = await nft.updateRoyalties(contractAccountId, signerId, nftTypeId, royaltyId, royaltyAmount);
 
         console.log({result});
     } catch (e) {

@@ -291,7 +291,7 @@ class EnvironmentNFT {
         }
     }
 
-    async updateRoyalties(contractAccountId: string, signerId: string, royaltyId : string, royaltyAmount: number) {
+    async updateRoyalties(contractAccountId: string, signerId: string, nftTypeId: string, royaltyId : string, royaltyAmount: number) {
         this.near = await connect(this.config);
         try {
             const signerAccount = await this.near.account(signerId);
@@ -299,10 +299,11 @@ class EnvironmentNFT {
                 viewMethods: [],
                 changeMethods: ['update_royalties']
             });
-            const updated_royalties = {};
+            const updated_royalties = {} as any;
             updated_royalties[royaltyId] = royaltyAmount;
             const response = await contract.update_royalties({
                 args: {
+                    nft_type_id: nftTypeId,
                     updated_royalties
                 },
                 amount: "1"
