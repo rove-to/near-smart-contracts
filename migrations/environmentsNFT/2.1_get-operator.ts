@@ -6,11 +6,11 @@ import {EnvironmentNFT} from "./environmentNFT";
 
 (async () => {
     try {
-        if (process.env.NETWORK != "testnet") {
+        const nft = new EnvironmentNFT(process.env.NETWORK);
+        if (!nft.config) {
             console.log("wrong network");
             return;
         }
-        const nft = new EnvironmentNFT(process.env.NETWORK);
 
         const contractAccountId = process.argv[2];
         const signerId = process.argv[3];

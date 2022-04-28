@@ -8,12 +8,11 @@ import {enums} from "near-api-js/lib/utils";
 
 (async () => {
     try {
-        if (process.env.NETWORK != "testnet") {
+        const nft = new EnvironmentNFT(process.env.NETWORK);
+        if (!nft.config) {
             console.log("wrong network");
             return;
         }
-        console.log(process.argv);
-        const nft = new EnvironmentNFT(process.env.NETWORK);
         const wasm = process.argv[2];
         const contractAccountId = process.argv[3];
         const adminId = process.argv[4] || process.env.ADMIN_ID || "";
