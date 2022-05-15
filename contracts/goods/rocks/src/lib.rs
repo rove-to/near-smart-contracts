@@ -15,19 +15,20 @@ NOTES:
   - To prevent the deployed contract from being modified or deleted, it should not have any access
     keys on its account.
  */
+use std::collections::HashMap;
+
+use near_contract_standards::non_fungible_token::{NonFungibleToken, refund_deposit_to_account};
+use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
-use near_contract_standards::non_fungible_token::{refund_deposit_to_account, NonFungibleToken};
-use near_contract_standards::non_fungible_token::{Token, TokenId};
+use near_sdk::{AccountId, assert_one_yocto, Balance, BorshStorageKey, env, Gas,
+               near_bindgen, PanicOnDefault, Promise, PromiseOrValue, PromiseResult, require};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedMap};
+use near_sdk::ext_contract;
 use near_sdk::json_types::U128;
-use near_sdk::{
-    assert_one_yocto, env, near_bindgen, require, AccountId, Balance, BorshStorageKey,
-    PanicOnDefault, Promise, PromiseOrValue,
-};
-use std::collections::HashMap;
+use near_sdk::serde::{Deserialize, Serialize};
 
 pub use crate::events::*;
 use crate::internal::*;
@@ -43,36 +44,67 @@ const ONE_HUNDRED_PERCENT_IN_BPS: u16 = 10_000;
 pub const NFT_METADATA_SPEC: &str = "1.0.0";
 pub const NFT_STANDARD_NAME: &str = "nep171";
 pub const NOT_FOUND_METAVERSE_ID_ERROR: &str = "Not found metaverse_id";
+pub const NOT_FOUND_ZONE_INDEX_ERROR: &str = "Not found zone_index";
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
+    pub royalties: UnorderedMap<String, HashMap<AccountId, u16>>,
+    pub tokens_metadata: UnorderedMap<String, TokenMetadata>,
 
+    // Parameter control
     pub admin_id: AccountId,
     pub operator_id: AccountId,
     pub treasury_id: AccountId,
 
-    // token_id => [account_id: percent]
-    pub royalties: UnorderedMap<String, HashMap<AccountId, u16>>,
+    pub init_imo_fee: u128, // fee in yoctoNEAR 1e-24 NEAR
 
     // Map metaverse_id => MetaverseMetadata
-    pub metaverses: UnorderedMap<String, MetaverseMetadata>,
-    pub tokens_metadata: UnorderedMap<String, TokenMetadata>,
+    pub metaverses: UnorderedMap<String, Metaverse>,
+    // Map metaverse_id => account_id
+    pub metaverse_owners: UnorderedMap<String, AccountId>,
+
+    // Map metaverse_id => [token_id => true/false]
+    pub tokens_minted: UnorderedMap<String, HashMap<String, bool>>,
+
+    // Map metaverse_id => [token_id => true]
+    pub nft_checker: UnorderedMap<String, HashMap<String, bool>>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(crate = "near_sdk::serde")]
+pub struct Zone {
+    pub zone_index: u16,
+    // required, start from 1
+    pub price: u128,
+    // required for type=3
+    pub core_team_addr: String,
+    // required for type=1
+    pub collection_addr: String,
+    // required for type=2
+    pub type_zone: u8,
+    // 1: core_team, 2: nft_holder, 3: public
+    pub rock_index_from: u128,
+    // rock_index start from 1
+    pub rock_index_to: u128, // required to >= from
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct MetaverseMetadata {
-    pub external_nft_contract: String,
-    pub amount_center_rock: u32,
-    pub amount_public_rock: u32,
-    pub price_center_rock: u128,
-    pub price_public_rock: u128,
+pub struct Metaverse {
+    // Map zone_index => Zone
+    pub zones: UnorderedMap<u16, Zone>,
+}
 
-    // for tracking
-    pub minted_center_rock: u32,
-    pub minted_public_rock: u32,
+#[ext_contract(collection_contract)]
+trait ExtContract {
+    fn nft_tokens_for_owner(&self, account_id: AccountId, from_index: Option<near_sdk::json_types::U128>, limit: Option<u64>) -> Vec<Token>;
+}
+
+#[ext_contract(rock_nft_contract)]
+pub trait RockNFTContract {
+    fn mint_nft_checker_rock(&mut self, metaverse_id: String, zone_index: u16, rock_index: u128, receiver_id: AccountId, token_metadata: TokenMetadata);
 }
 
 #[derive(BorshSerialize, BorshStorageKey)]
@@ -88,6 +120,9 @@ enum StorageKey {
     TokensMinted,
     Royalties,
     Metaverses,
+    MetaverseOwner,
+    Zone,
+    NftChecker,
 }
 
 #[near_bindgen]
@@ -97,20 +132,27 @@ impl Contract {
         admin_id: AccountId,
         operator_id: AccountId,
         treasury_id: AccountId,
+        init_imo_fee: U128, // fee in yoctoNEAR
         metadata: NFTContractMetadata,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
+        let init_imo_fee_in_128 = u128::from(init_imo_fee);
 
         Self {
             admin_id: admin_id.into(),
             operator_id: operator_id.clone().into(),
             treasury_id: treasury_id.into(),
-            royalties: UnorderedMap::new(StorageKey::Royalties),
+            init_imo_fee: init_imo_fee_in_128,
 
+            royalties: UnorderedMap::new(StorageKey::Royalties),
+            metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
             tokens_metadata: UnorderedMap::new(StorageKey::TokensMetadata),
 
             metaverses: UnorderedMap::new(StorageKey::Metaverses),
+            metaverse_owners: UnorderedMap::new(StorageKey::MetaverseOwner),
+            tokens_minted: UnorderedMap::new(StorageKey::TokensMinted),
+            nft_checker: UnorderedMap::new(StorageKey::NftChecker),
 
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
@@ -119,7 +161,6 @@ impl Contract {
                 Some(StorageKey::Enumeration),
                 Some(StorageKey::Approval),
             ),
-            metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
         }
     }
 
@@ -137,6 +178,33 @@ impl Contract {
             self.tokens.owner_id,
             "Unauthorized"
         );
+    }
+
+    fn assert_metaverse_exist(&self, metaverse_id: &String) -> Metaverse {
+        self.metaverses
+            .get(&metaverse_id)
+            .expect(NOT_FOUND_METAVERSE_ID_ERROR);
+
+        self.metaverses
+            .get(&metaverse_id).unwrap()
+    }
+
+    fn assert_zone_exist(&self, metaverse_id: &String, zone_index: u16) -> Zone {
+        self.assert_metaverse_exist(metaverse_id);
+        self.metaverses.get(metaverse_id).unwrap()
+            .zones.get(&zone_index)
+            .expect(NOT_FOUND_ZONE_INDEX_ERROR);
+
+        self.metaverses.get(metaverse_id).unwrap()
+            .zones.get(&zone_index).unwrap()
+    }
+
+    fn assert_metaverse_owner(&self, metaverse_id: &String) {
+        // metaverse_owner will attach greater than or equal 1 yoctoNEAR. This is for security and so that user will be redirected to the NEAR wallet
+        assert_at_least_one_yocto();
+        self.assert_metaverse_exist(metaverse_id);
+        let metaverse_owner = self.metaverse_owners.get(metaverse_id).expect(NOT_FOUND_METAVERSE_ID_ERROR);
+        assert_eq!(env::predecessor_account_id(), metaverse_owner, "Unauthorized");
     }
 
     /// change contract's admin, only current contract's admin can call this function
@@ -162,6 +230,31 @@ impl Contract {
         self.treasury_id = new_treasury_id.into();
     }
 
+    // Only operator can change init_imo_fee
+    #[payable]
+    pub fn change_init_imo_fee(&mut self, init_imo_fee: U128) {
+        self.assert_operator_only();
+        let init_imo_fee_in_128 = u128::from(init_imo_fee);
+        self.init_imo_fee = init_imo_fee_in_128;
+    }
+
+    #[payable]
+    pub fn change_nft_collection_rock_price(&mut self, metaverse_id: String, zone_index: u16, price: U128) {
+        self.assert_metaverse_owner(&metaverse_id);
+        let mut zone = self.assert_zone_exist(&metaverse_id, zone_index);
+        assert_eq!(zone.type_zone, 2, "zone_index invalid");
+        assert!(zone.rock_index_to > 0, "zone_index invalid");
+
+        let mut metaverse_data = self
+            .metaverses
+            .get(&metaverse_id).unwrap();
+        let price_in_u128 = u128::from(price);
+        zone.price = price_in_u128;
+
+        metaverse_data.zones.insert(&zone_index, &zone);
+        self.metaverses.insert(&metaverse_id, &metaverse_data);
+    }
+
     #[payable]
     pub fn update_royalties(
         &mut self,
@@ -183,11 +276,6 @@ impl Contract {
         self.admin_id
     }
 
-    #[result_serializer(borsh)]
-    pub fn get_metaverse_data(self,  metaverse_id: String) -> MetaverseMetadata {
-        self.metaverses.get(&metaverse_id).expect(NOT_FOUND_METAVERSE_ID_ERROR)
-    }
-
     pub fn get_operator(self) -> AccountId {
         self.tokens.owner_id
     }
@@ -196,106 +284,165 @@ impl Contract {
         self.treasury_id
     }
 
+    fn check_zone(&self, _zone: &Zone) -> bool {
+        if _zone.type_zone < 1 && _zone.type_zone > 3 {
+            return false;
+        }
+
+        if _zone.rock_index_to > 0 {
+            if _zone.type_zone == 1 {
+                if _zone.core_team_addr == "".to_string() {
+                    return false;
+                }
+            } else if _zone.type_zone == 2 {
+                if _zone.collection_addr == "".to_string() {
+                    return false;
+                }
+            } else if _zone.type_zone == 3 {
+                if _zone.price == 0 {
+                    return false;
+                }
+            }
+
+            if _zone.rock_index_from > _zone.rock_index_to || _zone.rock_index_from == 0 {
+                return false;
+            }
+
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // user init metaverse
     // user pay storage fee
     #[payable]
     pub fn init_metaverse(
         &mut self,
         metaverse_id: String,
-        external_nft_contract: String,
-        amount_center_rock: u32,
-        amount_public_rock: u32,
-        price_center_rock: U128, // U128 tuc la truyen len dang string
-        price_public_rock: U128,
+        zone1: Zone,
+        zone2: Zone,
+        zone3: Zone,
     ) {
+        // Make sure metaverse_id does NOT exist
         let metaverse_data = self.metaverses.get(&metaverse_id);
         match metaverse_data {
-            Some(MetaverseMetadata) => {
-                panic!("metaverse already inited")
+            Some(_metaverse) => {
+                env::panic_str("metaverse already existed");
             }
             _ => {}
         }
 
+        if zone1.rock_index_to == 0 || !self.check_zone(&zone1) {
+            env::panic_str("Z1_invalid")
+        }
+
+        if zone2.rock_index_to == 0 || !self.check_zone(&zone2) {
+            env::panic_str("Z2_invalid")
+        }
+
+        if zone3.rock_index_to == 0 || !self.check_zone(&zone3) {
+            env::panic_str("Z3_invalid")
+        }
+
+        if zone2.rock_index_from <= zone1.rock_index_to {
+            env::panic_str("Z2_invalid")
+        }
+        if zone3.rock_index_from <= zone2.rock_index_to {
+            env::panic_str("Z3_invalid")
+        }
+
         let initial_storage_usage = env::storage_usage();
+        let mut total_rock_size: u128 = 0;
+        if zone1.rock_index_to > 0 && zone1.rock_index_to >= zone1.rock_index_from {
+            total_rock_size = total_rock_size + (zone1.rock_index_to - zone1.rock_index_from);
+        }
 
-        let price_center_rock_u128 = u128::from(price_center_rock);
-        let price_public_rock_u128 = u128::from(price_public_rock);
+        if zone2.rock_index_to > 0 && zone2.rock_index_to >= zone2.rock_index_from {
+            total_rock_size = total_rock_size + (zone2.rock_index_to - zone2.rock_index_from);
+        }
 
-        self.metaverses.insert(
-            &metaverse_id,
-            &MetaverseMetadata {
-                external_nft_contract,
-                amount_center_rock,
-                amount_public_rock,
-                price_center_rock: price_center_rock_u128,
-                price_public_rock: price_public_rock_u128,
+        if zone3.rock_index_to > 0 && zone3.rock_index_to >= zone3.rock_index_from {
+            total_rock_size = total_rock_size + (zone3.rock_index_to - zone3.rock_index_from);
+        }
 
-                minted_center_rock: 0,
-                minted_public_rock: 0,
-            },
-        );
+        let total_init_imo_fee = self.init_imo_fee * total_rock_size;
+        let mut zones = UnorderedMap::new(StorageKey::Zone);
+        zones.insert(&zone1.zone_index, &zone1);
+        zones.insert(&zone1.zone_index, &zone2);
+        zones.insert(&zone1.zone_index, &zone3);
+
+        let metaverse = Metaverse { zones };
+        self.metaverses.insert(&metaverse_id, &metaverse);
+        self.metaverse_owners.insert(&metaverse_id, &env::predecessor_account_id());
+        self.tokens_minted.insert(&metaverse_id, &HashMap::new());
+        self.nft_checker.insert(&metaverse_id, &HashMap::new());
 
         let storage_used = env::storage_usage() - initial_storage_usage;
-        let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
+        let storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
+        let total_cost = total_init_imo_fee + storage_cost;
+        let attached_deposit = env::attached_deposit();
 
-        // thường là sẽ refund lại phí user trả thừa env::attached_deposit() - required_storage_cost
         require!(
-            env::attached_deposit() >= required_storage_cost,
-            "NOT ATTACHING ENOUGH DEPOSIT"
+            total_cost <= attached_deposit,
+            format!("Must attach {} yoctoNEAR to cover fee", total_cost)
         );
+
+        let refund = attached_deposit - total_cost;
+        if refund > 1 {
+            Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
     }
 
-    #[payable]
-    pub fn user_mint(
-        &mut self,
-        metaverse_id: String,
-        rock_id: String,
-        receiver_id: AccountId,
-        token_metadata: TokenMetadata,
-    ) -> Token {
-        let initial_storage_usage = env::storage_usage();
+    pub fn mint_nft_checker_rock(&mut self, metaverse_id: String, zone_index: u16, rock_index: u128, receiver_id: AccountId, token_metadata: TokenMetadata) {
+        assert_eq!(env::promise_results_count(), 1, "This is a callback method");
+        match env::promise_result(0) {
+            PromiseResult::NotReady => { env::panic_str("You need to have an NFT to be able to mint this rock"); }
+            PromiseResult::Failed => { env::panic_str("You need to have an NFT to be able to mint this rock"); }
+            PromiseResult::Successful(result) => {
+                let tokens
+                    = near_sdk::serde_json::from_slice::<Vec<Token>>(&result).unwrap();
+                if tokens.len() == 0 {
+                    env::panic_str("You need to have an NFT to be able to mint this rock")
+                }
 
-        let mut metaverse_data = self
-            .metaverses
-            .get(&metaverse_id)
-            .expect(NOT_FOUND_METAVERSE_ID_ERROR);
+                let nft_checker = self.nft_checker.get(&metaverse_id).unwrap();
+                let mut mintable = false;
+                let mut use_token_id: TokenId = "".parse().unwrap();
+                for token in tokens {
+                    let _token_id = token.token_id;
+                    let checker = nft_checker.get(&_token_id.to_string());
 
-        require!(
-            metaverse_data.minted_center_rock + metaverse_data.minted_public_rock
-                < metaverse_data.amount_center_rock + metaverse_data.amount_public_rock,
-            "REACH MAX SUPPLY"
-        );
-
-        let mut price: u128 = 0;
-        let mut is_operator_mint = false;
-        let mut mint_center_rock = false;
-
-        if env::predecessor_account_id() == self.operator_id {
-            self.assert_operator_only();
-            is_operator_mint = true;
-        }
-
-        if is_operator_mint {
-            price = 0;
-        } else {
-            if metaverse_data.minted_center_rock < metaverse_data.amount_center_rock {
-                mint_center_rock = true;
-                price = metaverse_data.price_center_rock;
-            } else {
-                price = metaverse_data.price_public_rock;
+                    match checker {
+                        Some(_existed) => {} // Skip if that token used
+                        None => {
+                            mintable = true;
+                            use_token_id = _token_id;
+                            break;
+                        }
+                    }
+                }
+                if !mintable {
+                    env::panic_str("You need to have an NFT to be able to mint this rock")
+                }
+                let zone = self.assert_zone_exist(&metaverse_id, zone_index);
+                let token_id = gen_token_id(&metaverse_id, zone_index, rock_index);
+                self._mint(
+                  metaverse_id.clone(),
+                    token_id.clone(),
+                    receiver_id.clone(),
+                    token_metadata.clone(),
+                    zone.price,
+                    zone.type_zone,
+                    use_token_id.to_string().clone(),
+                );
             }
         };
+    }
 
-        // TODO
-        if mint_center_rock {
-            // Check env::predecessor_account_id() có sỡ hữu 1 item từ external contract ko
-            // Nếu ko thì panic
-            // confirm lai voi a ThaiBao
-
-        }
-
-        let token_id = gen_token_id(&metaverse_id, &rock_id);
-
+    fn _mint(&mut self, metaverse_id: String, token_id: String, receiver_id: AccountId, token_metadata: TokenMetadata, token_price: u128,
+             type_zone: u8, use_token_id: String) {
+        let initial_storage_usage = env::storage_usage();
         let token = self.tokens.internal_mint_with_refund(
             token_id.clone(),
             receiver_id.clone(),
@@ -303,25 +450,28 @@ impl Contract {
             None,
         );
 
-        if mint_center_rock {
-            metaverse_data.minted_center_rock = metaverse_data.minted_center_rock + 1;
-        } else {
-            metaverse_data.minted_public_rock = metaverse_data.minted_public_rock + 1;
+        let mut token_minted = self.tokens_minted.get(&metaverse_id).unwrap();
+        token_minted.insert(token.token_id.to_string(), true);
+        self.tokens_minted.insert(&metaverse_id, &token_minted);
+
+        if type_zone == 2 {
+            let mut nft_checker = self.nft_checker.get(&metaverse_id).unwrap();
+            nft_checker.insert(use_token_id, true);
+            self.nft_checker.insert(&metaverse_id, &nft_checker);
         }
 
+        let attached_deposit = env::attached_deposit();
         let storage_used = env::storage_usage() - initial_storage_usage;
         let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
-
-        // user pay only for token price
+        let total_cost = required_storage_cost + token_price;
         require!(
-            env::attached_deposit() >= price,
-            "NOT ATTACHING ENOUGH DEPOSIT"
-        );
+                    total_cost <= attached_deposit,
+                    format!("Must attach {} yoctoNEAR to cover fee", total_cost)
+                );
 
-        // transfer to treasury: token_price - storage_cost
-        if !is_operator_mint && env::attached_deposit() > required_storage_cost {
-            Promise::new(self.treasury_id.clone())
-                .transfer(env::attached_deposit() - required_storage_cost);
+        let metaverse_owner = self.metaverse_owners.get(&metaverse_id).unwrap();
+        if token_price > 0 {
+            Promise::new(metaverse_owner).transfer(token_price);
         }
 
         // Construct the mint log as per the events standard.
@@ -329,7 +479,7 @@ impl Contract {
             standard: NFT_STANDARD_NAME.to_string(),
             version: NFT_METADATA_SPEC.to_string(),
             event: EventLogVariant::NftMint(vec![NftMintLog {
-                owner_id: receiver_id.to_string(),
+                owner_id: token.token_id.to_string(),
                 token_ids: vec![token_id.to_string()],
                 memo: None,
             }]),
@@ -337,8 +487,72 @@ impl Contract {
 
         // Log the serialized json.
         env::log_str(&nft_mint_log.to_string());
+    }
 
-        token
+    #[payable]
+    pub fn mint_rock(
+        &mut self,
+        metaverse_id: String,
+        zone_index: u16,
+        rock_index: u128,
+        receiver_id: AccountId,
+        token_metadata: TokenMetadata,
+    ) {
+        let zone = self.assert_zone_exist(&metaverse_id, zone_index);
+        assert!(zone.rock_index_from > 0 && zone.rock_index_to > 0, "zone rock index invalid");
+        assert!(zone.rock_index_from <= rock_index && rock_index <= zone.rock_index_to, "rock_index invalid");
+        let token_id = gen_token_id(&metaverse_id, zone_index, rock_index);
+        let token_minted = self.tokens_minted.get(&metaverse_id);
+        match token_minted {
+            Some(_token_minted) => {
+                if *_token_minted.get(&token_id).unwrap() {
+                    env::panic_str("token_id is existed")
+                }
+            }
+            _ => {}
+        }
+
+        let signer_id = env::signer_account_id();
+        if zone.type_zone == 1 {
+            assert_eq!(zone.core_team_addr, env::predecessor_account_id().to_string(), "require core team call this mint");
+        } else if zone.type_zone == 2 {
+            // NFT checker
+            assert_ne!(zone.collection_addr, "".to_string(), "collection addr is empty");
+            let collect_contract_account_id: AccountId = zone.collection_addr.parse().unwrap();
+            collection_contract::nft_tokens_for_owner(
+                signer_id,
+                None,
+                None,
+                collect_contract_account_id,
+                0,
+                Gas(5_000_000_000_000))
+                .then(rock_nft_contract::mint_nft_checker_rock(metaverse_id.clone(),
+                                                               zone_index,
+                                                               rock_index,
+                                                               receiver_id.clone(),
+                                                               token_metadata.clone(),
+                                                               env::signer_account_id(),
+                                                               0,
+                                                               Gas(5_000_000_000_000)));
+        } else if zone.type_zone == 3 {
+           if zone.price <= 0 {
+               env::panic_str("missing price for public zone");
+           }
+        } else {
+            env::panic_str("does not support zone");
+        }
+
+        if zone.type_zone != 2 {
+            self._mint(
+              metaverse_id.clone(),
+                token_id.clone(),
+                receiver_id.clone(),
+                token_metadata.clone(),
+                zone.price,
+                zone.type_zone,
+                "".to_string(),
+            );
+        }
     }
 
     #[payable]

@@ -11,7 +11,7 @@ pub(crate) fn assert_at_least_one_yocto() {
     require!(env::attached_deposit() >= 1, "Requires attached deposit of at least 1 yoctoNEAR")
 }
 
-pub(crate) fn gen_token_id(metaverse_id: &String, rock_id: &String) -> String {
-    let token_id = format!("{}:{}", metaverse_id, rock_id);
+pub(crate) fn gen_token_id(metaverse_id: &String, zone_index: u16, rock_index: u128) -> String {
+    let token_id = format!("{}:{}:{}", metaverse_id, zone_index, rock_index);
     token_id
 }
