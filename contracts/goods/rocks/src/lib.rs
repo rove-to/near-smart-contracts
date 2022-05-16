@@ -477,7 +477,7 @@ impl Contract {
             standard: NFT_STANDARD_NAME.to_string(),
             version: NFT_METADATA_SPEC.to_string(),
             event: EventLogVariant::NftMint(vec![NftMintLog {
-                owner_id: token.token_id.to_string(),
+                owner_id: receiver_id.to_string(),
                 token_ids: vec![token_id.to_string()],
                 memo: None,
             }]),
@@ -506,12 +506,11 @@ impl Contract {
         assert!(zone.rock_index_from > 0 && zone.rock_index_to > 0, "zone rock index invalid");
         assert!(zone.rock_index_from <= rock_index && rock_index <= zone.rock_index_to, "rock_index invalid");
         let token_id = gen_token_id(&metaverse_id, zone_index, rock_index);
-        let token_minted = self.tokens_minted.get(&metaverse_id);
-        match token_minted {
+        let tokens_minted = self.tokens_minted.get(&metaverse_id).unwrap();
+        let tokens_minted_checker = tokens_minted.get(&token_id);
+        match tokens_minted_checker {
             Some(_token_minted) => {
-                if *_token_minted.get(&token_id).unwrap() {
-                    env::panic_str("token_id is existed")
-                }
+                env::panic_str("token_id is existed")
             }
             _ => {}
         }
