@@ -1,0 +1,11 @@
+{
+  "metaverse_id": "625e23b5a7152656f2cb8ab9",
+  "zone_index": 1,
+  "rock_index": 1,
+  "receiver_id": "tmkhoa.testnet",
+  "token_metadata": {
+    "title": "NEAR rock",
+    "description": "NEAR rock in metaverse",
+    "media": "https://bafybeiftczwrtyr3k7a2k4vutd3amkwsmaqyhrdzlhvpt33dyjivufqusq.ipfs.dweb.link/goteam-gif.gif"
+  }
+}

@@ -114,8 +114,6 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     Approval,
-    MaxSupplies,
-    TokensPrice,
     TokensMetadata,
     TokensMinted,
     Royalties,
@@ -369,8 +367,8 @@ impl Contract {
         let total_init_imo_fee = self.init_imo_fee * total_rock_size;
         let mut zones = UnorderedMap::new(StorageKey::Zone);
         zones.insert(&zone1.zone_index, &zone1);
-        zones.insert(&zone1.zone_index, &zone2);
-        zones.insert(&zone1.zone_index, &zone3);
+        zones.insert(&zone2.zone_index, &zone2);
+        zones.insert(&zone3.zone_index, &zone3);
 
         let metaverse = Metaverse { zones };
         self.metaverses.insert(&metaverse_id, &metaverse);
@@ -489,6 +487,12 @@ impl Contract {
         env::log_str(&nft_mint_log.to_string());
     }
 
+    pub fn get_zone_info(&self, metaverse_id: String, zone_index: u16) -> String {
+        let zone = self.assert_zone_exist(&metaverse_id, zone_index);
+        format!("{}, {}, {}, {}, {}, {}, {}", zone.zone_index, zone.type_zone, zone.core_team_addr, zone.collection_addr,
+               zone.price, zone.rock_index_from, zone.rock_index_to)
+    }
+
     #[payable]
     pub fn mint_rock(
         &mut self,
@@ -541,6 +545,10 @@ impl Contract {
         } else {
             env::panic_str("does not support zone");
         }
+        let mut price = zone.price;
+        if zone.type_zone == 1 {
+            price = 0;
+        }
 
         if zone.type_zone != 2 {
             self._mint(
@@ -548,7 +556,7 @@ impl Contract {
                 token_id.clone(),
                 receiver_id.clone(),
                 token_metadata.clone(),
-                zone.price,
+              price,
                 zone.type_zone,
                 "".to_string(),
             );

@@ -1,0 +1,11 @@
+{
+  "admin_id": "tmkhoarock.testnet",
+  "operator_id": "tmkhoarock.testnet",
+  "treasury_id": "tmkhoarock.testnet",
+  "init_imo_fee": "10000000000000000000",
+  "metadata": {
+    "spec": "nft-1.0.0",
+    "name": "Rove Rock NFT In The NEAR Metaverse",
+    "symbol": "RockNFT"
+  }
+}

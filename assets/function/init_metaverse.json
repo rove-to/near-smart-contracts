@@ -1,0 +1,30 @@
+{
+  "metaverse_id": "625e23b5a7152656f2cb8ab9",
+  "zone1": {
+    "zone_index": 1,
+    "type_zone": 1,
+    "price": 0,
+    "core_team_addr": "tmkhoarock.testnet",
+    "collection_addr": "",
+    "rock_index_from": 1,
+    "rock_index_to": 20
+  },
+  "zone2": {
+    "zone_index": 2,
+    "type_zone": 2,
+    "price": 0,
+    "core_team_addr": "",
+    "collection_addr": "rove-contract-1650526942613-tmkhoa.testnet",
+    "rock_index_from": 21,
+    "rock_index_to": 60
+  },
+  "zone3": {
+    "zone_index": 3,
+    "type_zone": 3,
+    "price": 1000000000000000000,
+    "core_team_addr": "",
+    "collection_addr": "",
+    "rock_index_from": 61,
+    "rock_index_to": 100
+  }
+}
