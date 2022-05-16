@@ -534,7 +534,7 @@ impl Contract {
                                                                rock_index,
                                                                receiver_id.clone(),
                                                                token_metadata.clone(),
-                                                               env::signer_account_id(),
+                                                               env::current_account_id(),
                                                                0,
                                                                Gas(5_000_000_000_000)));
         } else if zone.type_zone == 3 {
