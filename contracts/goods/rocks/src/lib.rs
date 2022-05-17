@@ -45,6 +45,9 @@ pub const NFT_METADATA_SPEC: &str = "1.0.0";
 pub const NFT_STANDARD_NAME: &str = "nep171";
 pub const NOT_FOUND_METAVERSE_ID_ERROR: &str = "Not found metaverse_id";
 pub const NOT_FOUND_ZONE_INDEX_ERROR: &str = "Not found zone_index";
+pub const GAS_FOR_COMMON_OPERATIONS: Gas = Gas(30_000_000_000_000);
+pub const GAS_RESERVED_FOR_CURRENT_CALL: Gas = Gas(20_000_000_000_000);
+
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -392,6 +395,7 @@ impl Contract {
         }
     }
 
+    #[payable]
     pub fn mint_nft_checker_rock(&mut self, metaverse_id: String, zone_index: u16, rock_index: u128, receiver_id: AccountId, token_metadata: TokenMetadata) {
         assert_eq!(env::promise_results_count(), 1, "This is a callback method");
         match env::promise_result(0) {
@@ -522,21 +526,29 @@ impl Contract {
             // NFT checker
             assert_ne!(zone.collection_addr, "".to_string(), "collection addr is empty");
             let collect_contract_account_id: AccountId = zone.collection_addr.parse().unwrap();
-            collection_contract::nft_tokens_for_owner(
+            let call = collection_contract::nft_tokens_for_owner(
                 signer_id,
                 None,
                 None,
                 collect_contract_account_id,
                 0,
-                Gas(5_000_000_000_000))
-                .then(rock_nft_contract::mint_nft_checker_rock(metaverse_id.clone(),
-                                                               zone_index,
-                                                               rock_index,
-                                                               receiver_id.clone(),
-                                                               token_metadata.clone(),
-                                                               env::current_account_id(),
-                                                               0,
-                                                               Gas(5_000_000_000_000)));
+                GAS_FOR_COMMON_OPERATIONS,
+            );
+            let remaining_gas: Gas = env::prepaid_gas()
+                - env::used_gas()
+                - GAS_FOR_COMMON_OPERATIONS
+                - GAS_RESERVED_FOR_CURRENT_CALL;
+            let callback =  rock_nft_contract::mint_nft_checker_rock(
+                metaverse_id.clone(),
+                zone_index,
+                rock_index,
+                receiver_id.clone(),
+                token_metadata.clone(),
+                env::current_account_id(),
+                env::attached_deposit(),
+                remaining_gas,
+            );
+            call.then(callback);
         } else if zone.type_zone == 3 {
            if zone.price <= 0 {
                env::panic_str("missing price for public zone");
