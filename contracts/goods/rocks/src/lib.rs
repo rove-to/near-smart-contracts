@@ -63,6 +63,7 @@ pub struct Contract {
     pub treasury_id: AccountId,
 
     pub init_imo_fee: u128, // fee in yoctoNEAR 1e-24 NEAR
+    pub rock_purchase_fee: u32, // in percent, with 0.01% = 1 = rock_purchase_fee
 
     // Map metaverse_id => MetaverseMetadata
     pub metaverses: UnorderedMap<String, Metaverse>,
@@ -134,6 +135,7 @@ impl Contract {
         operator_id: AccountId,
         treasury_id: AccountId,
         init_imo_fee: U128, // fee in yoctoNEAR
+        rock_purchase_fee: u32, // 1 = 0.01% = 0.0001
         metadata: NFTContractMetadata,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
@@ -145,6 +147,7 @@ impl Contract {
             operator_id: operator_id.clone().into(),
             treasury_id: treasury_id.into(),
             init_imo_fee: init_imo_fee_in_128,
+            rock_purchase_fee,
 
             royalties: UnorderedMap::new(StorageKey::Royalties),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
@@ -208,6 +211,12 @@ impl Contract {
         assert_eq!(env::predecessor_account_id(), metaverse_owner, "Unauthorized");
     }
 
+    #[payable]
+    pub fn change_rock_purchase_fee(&mut self, rock_purchase_fee: u32) {
+        self.assert_operator_only();
+        self.rock_purchase_fee = rock_purchase_fee;
+    }
+
     /// change contract's admin, only current contract's admin can call this function
     #[payable]
     pub fn change_admin(&mut self, new_admin_id: AccountId) {
@@ -215,8 +224,6 @@ impl Contract {
         self.admin_id = new_admin_id.into();
     }
 
-    /// change tokens.owner_id and operator_id to new_operator_id
-    /// move all tokens of current operator to new operator
     #[payable]
     pub fn change_operator(&mut self, new_operator_id: AccountId) {
         self.assert_admin_only();
@@ -368,6 +375,17 @@ impl Contract {
         }
 
         let total_init_imo_fee = self.init_imo_fee * total_rock_size;
+        let attached_deposit = env::attached_deposit();
+        require!(
+            total_init_imo_fee <= attached_deposit,
+            format!("Need {} yoctoNEAR to init metaverse with {} rocks ({} yoctoNEAR per rock)",
+                total_init_imo_fee,
+                total_rock_size,
+                self.init_imo_fee,
+            )
+        );
+        let refund = attached_deposit - total_init_imo_fee;
+
         let mut zones = UnorderedMap::new(StorageKey::Zone);
         zones.insert(&zone1.zone_index, &zone1);
         zones.insert(&zone2.zone_index, &zone2);
@@ -381,26 +399,23 @@ impl Contract {
 
         let storage_used = env::storage_usage() - initial_storage_usage;
         let storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
-        let total_cost = total_init_imo_fee + storage_cost;
-        let attached_deposit = env::attached_deposit();
+        let remain = attached_deposit - storage_cost;
 
-        require!(
-            total_cost <= attached_deposit,
-            format!("Must attach {} yoctoNEAR to cover fee", total_cost)
-        );
-
-        let refund = attached_deposit - total_cost;
-        if refund > 1 {
+        if refund > 0 {
             Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
+        if remain > 0 {
+            Promise::new(self.treasury_id.clone()).transfer(remain);
         }
     }
 
+    // This is callback function (private, CAN NOT CALL DIRECTLY)
     #[payable]
     pub fn mint_nft_checker_rock(&mut self, metaverse_id: String, zone_index: u16, rock_index: u128, receiver_id: AccountId, token_metadata: TokenMetadata) {
         assert_eq!(env::promise_results_count(), 1, "This is a callback method");
         match env::promise_result(0) {
-            PromiseResult::NotReady => { env::panic_str("You need to have an NFT to be able to mint this rock"); }
-            PromiseResult::Failed => { env::panic_str("You need to have an NFT to be able to mint this rock"); }
+            PromiseResult::NotReady => { env::panic_str("NFT Checker is not ready"); }
+            PromiseResult::Failed => { env::panic_str("NFT Checker is not ready is fail"); }
             PromiseResult::Successful(result) => {
                 let tokens
                     = near_sdk::serde_json::from_slice::<Vec<Token>>(&result).unwrap();
@@ -425,7 +440,7 @@ impl Contract {
                     }
                 }
                 if !mintable {
-                    env::panic_str("You need to have an NFT to be able to mint this rock")
+                    env::panic_str("You need to have an NFT to mint rock in this zone")
                 }
                 let zone = self.assert_zone_exist(&metaverse_id, zone_index);
                 let token_id = gen_token_id(&metaverse_id, zone_index, rock_index);
@@ -463,17 +478,35 @@ impl Contract {
         }
 
         let attached_deposit = env::attached_deposit();
+        require!(
+            token_price <= attached_deposit,
+            format!("Need {} yoctoNEAR to mint this rock", token_price)
+        );
+        let refund = attached_deposit - token_price;
+        /*
+        if token_price == 0 => contract account will pay storage cost
+         */
         let storage_used = env::storage_usage() - initial_storage_usage;
         let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
-        let total_cost = required_storage_cost + token_price;
-        require!(
-                    total_cost <= attached_deposit,
-                    format!("Must attach {} yoctoNEAR to cover fee", total_cost)
-                );
-
-        let metaverse_owner = self.metaverse_owners.get(&metaverse_id).unwrap();
         if token_price > 0 {
-            Promise::new(metaverse_owner).transfer(token_price);
+            let remain = token_price - required_storage_cost;
+            if remain > 0 {
+                if self.rock_purchase_fee > 0 {
+                    let treasury_amount = remain * self.rock_purchase_fee as u128 / 10_000;
+                    let metaverse_owner_amount = remain - treasury_amount;
+                    if treasury_amount > 0 {
+                        Promise::new(self.treasury_id.clone()).transfer(treasury_amount);
+                    }
+                    if metaverse_owner_amount > 0 {
+                        let metaverse_owner = self.metaverse_owners.get(&metaverse_id).unwrap();
+                        Promise::new(metaverse_owner).transfer(metaverse_owner_amount);
+                    }
+                }
+            }
+        }
+
+        if refund > 0 {
+            Promise::new(env::predecessor_account_id()).transfer(refund);
         }
 
         // Construct the mint log as per the events standard.
@@ -487,7 +520,6 @@ impl Contract {
             }]),
         };
 
-        // Log the serialized json.
         env::log_str(&nft_mint_log.to_string());
     }
 
