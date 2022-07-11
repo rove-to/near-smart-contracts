@@ -18,8 +18,7 @@ NOTES:
  */
 use std::collections::HashMap;
 
-use near_contract_standards::non_fungible_token::{NonFungibleToken, refund_deposit_to_account};
-use near_contract_standards::non_fungible_token::{Token, TokenId};
+use near_contract_standards::non_fungible_token::{NonFungibleToken, refund_deposit_to_account, Token, TokenId};
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
@@ -45,8 +44,6 @@ pub const NFT_METADATA_SPEC: &str = "1.0.0";
 pub const NFT_STANDARD_NAME: &str = "nep171";
 pub const NOT_FOUND_METAVERSE_ID_ERROR: &str = "Not found metaverse_id";
 pub const NOT_FOUND_ZONE_INDEX_ERROR: &str = "Not found zone_index";
-pub const GAS_FOR_COMMON_OPERATIONS: Gas = Gas(30_000_000_000_000);
-pub const GAS_RESERVED_FOR_CURRENT_CALL: Gas = Gas(20_000_000_000_000);
 
 
 #[near_bindgen]
@@ -285,10 +282,11 @@ impl Contract {
         let metaverse_data = self.metaverses.get(&metaverse_id);
         match metaverse_data {
             Some(_metaverse) => {
-                env::panic_str("metaverse already existed");
+                env::panic_str("metaverse is already existed");
             }
             _ => {}
         }
+        require!(zone3.zone_index != 1, "zone_index = 1 is Rover zone");
         require!(zone3.type_zone == 3, "must be public zone");
         // rock index = 1 for rove team
         require!(zone3.rock_index_from == 2, "rock_index_from must = 2");
@@ -335,7 +333,7 @@ impl Contract {
 
         let storage_used = env::storage_usage() - initial_storage_usage;
         let storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
-        let remain = attached_deposit - storage_cost;
+        let remain = total_init_imo_fee - storage_cost;
 
         if refund > 0 {
             Promise::new(env::predecessor_account_id()).transfer(refund);
