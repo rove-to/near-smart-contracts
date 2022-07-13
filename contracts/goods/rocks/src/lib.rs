@@ -29,7 +29,7 @@ use near_sdk::collections::{LazyOption, UnorderedMap};
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    assert_one_yocto, env, near_bindgen, require, AccountId, Balance, BorshStorageKey, Gas,
+    assert_one_yocto, env, near_bindgen, require, AccountId, Balance, BorshStorageKey,
     PanicOnDefault, Promise, PromiseOrValue,
 };
 
@@ -104,7 +104,6 @@ enum StorageKey {
     Royalties,
     Metaverses,
     MetaverseOwner,
-    Zone,
 }
 
 #[near_bindgen]

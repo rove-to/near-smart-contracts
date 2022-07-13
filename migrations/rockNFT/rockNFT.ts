@@ -106,6 +106,26 @@ class RockNFT {
         }
     }
 
+    async getZoneInfo(signerAccountId: string, contractAccountID: string, metaverseID: string, zoneIndex: number) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerAccountId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountID,  {
+                viewMethods: ["get_zone_info"],
+                changeMethods: [],
+            });
+            const args = {
+                metaverse_id: metaverseID,
+                zone_index: zoneIndex,
+            }
+            console.log("call get_zone_info with args", args);
+            const response = await contract.get_zone_info(args);
+            console.log(`get_zone_info response: ${response}`);
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
     async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string,
                init_imo_fee: string, rock_purchase_fee: number,
                contractMetadata: any) {
@@ -125,49 +145,34 @@ class RockNFT {
         await contract.new({args, gas: "300000000000000"});
     }
 
-    async createNft(contractAccountId: string, signerId: string, nftTypeId: string, price: string, token_metadata: any, max_supply: number, attachedDeposit: string) {
+    async mintRock(signerId: string, contractAccountId: string, metaverseId: string, zoneIndex: number, rockIndex: number,
+                   receiverId: string, tokenMetadata: any, attachedDeposit: string) {
         this.near = await connect(this.config);
         console.log({contractAccountId});
         try {
             const signerAccount = await this.near.account(signerId);
             const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
                 viewMethods: [],
-                changeMethods: ["create_nft"]
+                changeMethods: ["mint_rock"]
             });
 
-            await contract.create_nft(
-                {
-                    nft_type_id : nftTypeId,
-                    price: utils.format.parseNearAmount(price),
-                    token_metadata,
-                    max_supply
-                },
-                "300000000000000",
-                utils.format.parseNearAmount(attachedDeposit)
-            );
-        } catch (e) {
-            console.log(e);
-        }
-    }
+            const args =  {
+                metaverse_id: metaverseId,
+                zone_index: zoneIndex,
+                rock_index: rockIndex,
+                receiver_id: receiverId,
+                token_metadata: tokenMetadata,
+            }
 
-    async userMint(contractAccountId: string, signerId: string, nftTypeId: string, receiverId: string, attachedDeposit: string) {
-        this.near = await connect(this.config);
-        console.log({contractAccountId});
-        try {
-            const signerAccount = await this.near.account(signerId);
-            const contract = new nearAPI.Contract(signerAccount, contractAccountId, {
-                viewMethods: [],
-                changeMethods: ["user_mint"]
-            });
-
-            await contract.user_mint(
+            console.log(`call mint_rock with args:`, args)
+            const response = await contract.mint_rock(
                 {
-                    nft_type_id : nftTypeId,
-                    receiver_id: receiverId
+                    args,
+                    gas: "300000000000000",
+                    amount: utils.format.parseNearAmount(attachedDeposit),
                 },
-                "300000000000000",
-                utils.format.parseNearAmount(attachedDeposit)
             );
+            console.log(`response mint_rock ${response}`)
         } catch (e) {
             console.log(e);
         }
