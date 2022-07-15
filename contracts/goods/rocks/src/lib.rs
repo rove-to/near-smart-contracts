@@ -442,6 +442,17 @@ impl Contract {
         )
     }
 
+    pub fn get_init_imo_fee(&self) -> U128 {
+        return U128::from(self.init_imo_fee);
+    }
+
+    #[payable]
+    pub fn update_init_imo_fee(&mut self, init_imo_fee: U128) {
+        self.assert_operator_only();
+        let init_imo_fee_u128 = u128::from(init_imo_fee);
+        self.init_imo_fee = init_imo_fee_u128;
+    }
+
     #[payable]
     pub fn mint_rock(
         &mut self,
