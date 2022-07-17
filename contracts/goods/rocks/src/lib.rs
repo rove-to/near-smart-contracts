@@ -359,6 +359,19 @@ impl Contract {
                 Promise::new(self.treasury_id.clone()).transfer(remain);
             }
         }
+
+        let init_metaverse_log: EventLog = EventLog {
+            standard: "public_imo_init".to_string(),
+            version: "1.0.0".to_string(),
+            event: EventLogVariant::IMOInit(vec![IMOInitLog {
+                metaverse_id,
+                owner_id: env::signer_account_id().to_string(),
+                rock_size: total_rock_size,
+                memo: None,
+            }]),
+        };
+
+        env::log_str(&init_metaverse_log.to_string());
     }
 
     fn _mint(

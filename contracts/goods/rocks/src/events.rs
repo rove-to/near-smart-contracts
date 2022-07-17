@@ -12,6 +12,7 @@ use near_sdk::serde::{Deserialize, Serialize};
 pub enum EventLogVariant {
     NftMint(Vec<NftMintLog>),
     NftTransfer(Vec<NftTransferLog>),
+    IMOInit(Vec<IMOInitLog>)
 }
 
 /// Interface to capture data about an event
@@ -73,6 +74,17 @@ pub struct NftTransferLog {
     pub old_owner_id: String,
     pub new_owner_id: String,
     pub token_ids: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct IMOInitLog {
+    pub metaverse_id: String,
+    pub owner_id: String,
+    pub rock_size: u128,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
