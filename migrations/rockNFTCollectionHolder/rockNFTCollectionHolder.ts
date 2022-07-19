@@ -128,6 +128,21 @@ class RockNFTCollectionHolder {
         }
     }
 
+    async getIMOInitFee(signerAccountId: string, contractAccountID: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerAccountId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountID,  {
+                viewMethods: ["get_init_imo_fee"],
+                changeMethods: [],
+            });
+            const response = await contract.get_init_imo_fee({});
+            console.log(`get_init_imo_fee response: ${response}`);
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
     async init(contractAccountId: string, account: any, adminId: string, operatorId: string, treasuryId: string,
                init_imo_fee: string, rock_purchase_fee: number,
                init_imo_nft_holder_size: number,
