@@ -333,16 +333,12 @@ impl Contract {
 
     fn check_zone(&self, _zone: &Zone) -> bool {
         let zone_price = u128::from(_zone.price);
-        if _zone.type_zone < 1 && _zone.type_zone > 3 {
+        if _zone.type_zone != 2 && _zone.type_zone != 3 {
             return false;
         }
 
         if _zone.rock_index_to > 0 {
-            if _zone.type_zone == 1 {
-                if _zone.core_team_addr == "".to_string() {
-                    return false;
-                }
-            } else if _zone.type_zone == 2 {
+            if _zone.type_zone == 2 {
                 if _zone.collection_addr == "".to_string() {
                     return false;
                 }
@@ -351,7 +347,6 @@ impl Contract {
                     return false;
                 }
             }
-
             if _zone.rock_index_from > _zone.rock_index_to || _zone.rock_index_from == 0 {
                 return false;
             }
@@ -381,7 +376,7 @@ impl Contract {
             }
             _ => {}
         }
-        let nft_collection_address = self.metaverse_nft_collections.get(&metaverse_id);
+        let nft_collection_address = self.metaverse_nft_collections.get(&_zone2.collection_addr);
         match nft_collection_address {
             Some(_address) => {
                 env::panic_str("this collection address is already used");
@@ -396,7 +391,7 @@ impl Contract {
         }
 
         let initial_storage_usage = env::storage_usage();
-        let mut total_rock_size: u128 = zone2.rock_index_to - zone2.rock_index_from + 1;
+        let total_rock_size: u128 = zone2.rock_index_to - zone2.rock_index_from + 1;
         let mut total_init_imo_fee = 0;
         if self.init_imo_fee > 0 {
             total_init_imo_fee = self.init_imo_fee * total_rock_size;
@@ -434,7 +429,7 @@ impl Contract {
         self.metaverse_owners
             .insert(&metaverse_id, &self.operator_id); // will transfer owner later
         self.metaverse_nft_collections
-            .insert(&metaverse_id, &collection_address);
+            .insert(&collection_address, &metaverse_id);
 
         self.tokens_minted.insert(&metaverse_id, &HashMap::new());
         self.nft_checker.insert(&metaverse_id, &HashMap::new());
@@ -451,6 +446,18 @@ impl Contract {
                 Promise::new(self.treasury_id.clone()).transfer(remain);
             }
         }
+        let init_metaverse_log: EventLog = EventLog {
+            standard: "nft_collection_holder_imo_init".to_string(),
+            version: "1.0.0".to_string(),
+            event: EventLogVariant::ImoInit(vec![ImoInitLog {
+                metaverse_id,
+                owner_id: env::signer_account_id().to_string(),
+                rock_size: total_rock_size,
+                memo: None,
+            }]),
+        };
+
+        env::log_str(&init_metaverse_log.to_string());
     }
 
     // This is callback function (private, CAN NOT CALL DIRECTLY)
@@ -697,6 +704,87 @@ impl Contract {
                 "".to_string(),
             );
         }
+    }
+
+    #[payable]
+    pub fn add_zone(&mut self, metaverse_id: String, _zone: Zone) {
+        let metaverse = self.assert_metaverse_exist(&metaverse_id);
+        let zone_checker = metaverse.zones.get(&_zone.zone_index);
+        match zone_checker {
+            Some(_zone) => {
+                env::panic_str("zone_index is already existed");
+            }
+            _ => {}
+        }
+
+        assert_eq!(self.metaverse_owners.get(&metaverse_id).unwrap(), env::signer_account_id(), "only metaverse owner can call this function");
+
+        if !self.check_zone(&_zone) {
+            env::panic_str("zone is invalid");
+        }
+
+        assert!(_zone.type_zone == 2 || _zone.type_zone == 3, "type_zone must be 2 or 3");
+        let mut zones = metaverse.zones;
+        if _zone.type_zone == 2 {
+            if let Some(_zone_index_2) = zones.get(&2u16) {
+                assert_eq!(_zone_index_2.type_zone, 2, "zone_index 2 doest not have type_zone = 2");
+                assert_eq!(_zone_index_2.collection_addr, _zone.collection_addr, "collection_address is invalid");
+            } else {
+                env::panic_str("this metaverse_id does not still have zone_index 2");
+            }
+        }
+        let total_rock_size: u128 = _zone.rock_index_to - _zone.rock_index_from + 1;
+        let mut total_add_zone_fee = 0;
+        if self.init_imo_fee > 0 {
+            total_add_zone_fee = self.init_imo_fee * total_rock_size;
+        }
+
+        let attached_deposit = env::attached_deposit();
+        require!(
+            total_add_zone_fee <= attached_deposit,
+            format!(
+                "Need {} yoctoNEAR to add zone with {} rocks ({} yoctoNEAR per rock)",
+                total_add_zone_fee, total_rock_size, self.init_imo_fee,
+            )
+        );
+
+        let refund = attached_deposit - total_add_zone_fee;
+        let initial_storage_usage = env::storage_usage();
+        zones.insert(_zone.zone_index, _zone.clone());
+        let metaverse = Metaverse { zones };
+        self.metaverses.insert(&metaverse_id, &metaverse);
+
+        if refund > 0 {
+            Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
+
+        let storage_used = env::storage_usage() - initial_storage_usage;
+        let storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
+        if total_add_zone_fee > storage_cost {
+            let remain = total_add_zone_fee - storage_cost;
+            if remain > 0 {
+                Promise::new(self.treasury_id.clone()).transfer(remain);
+            }
+        }
+        let add_zone_log: EventLog = EventLog {
+            standard: "nft_collection_holder_imo_add_zone".to_string(),
+            version: "1.0.0".to_string(),
+            event: EventLogVariant::ImoAddZone(vec![ImoAddZoneLog {
+                metaverse_id,
+                owner_id: env::signer_account_id().to_string(),
+                zone_index: _zone.zone_index,
+                price: _zone.price,
+                core_team_addr: _zone.core_team_addr,
+                collection_addr: _zone.collection_addr,
+                type_zone: _zone.type_zone,
+                rock_index_from: _zone.rock_index_from,
+                rock_index_to: _zone.rock_index_to,
+                rock_size: total_rock_size,
+                memo: None,
+            }]),
+        };
+
+        env::log_str(&add_zone_log.to_string());
     }
 
     #[payable]
