@@ -108,6 +108,39 @@ class RockNFTCollectionHolder {
         }
     }
 
+    async addZone(signerAccountId: string, contractAccountID: string, metaverseID: string, zoneIndex: number,
+                typeZone: number,
+                rockIndexFrom: number, rockIndexTo: number,
+                price: string, collectionAddress: string,  attachedDeposit: string) {
+        this.near = await connect(this.config);
+        try {
+            const signerAccount = await this.near.account(signerAccountId);
+            const contract = new nearAPI.Contract(signerAccount, contractAccountID,  {
+                viewMethods: [],
+                changeMethods: ["add_zone"],
+            });
+            const args = {
+                metaverse_id: metaverseID,
+                _zone: {
+                    zone_index: zoneIndex,
+                    price: utils.format.parseNearAmount(price),
+                    core_team_addr: '',
+                    collection_addr: collectionAddress,
+                    type_zone: typeZone,
+                    rock_index_from: rockIndexFrom,
+                    rock_index_to: rockIndexTo,
+                }
+            }
+            console.log("call add_zone with args", args);
+            const resp = await contract.add_zone({args, gas: "300000000000000",
+                amount: utils.format.parseNearAmount(attachedDeposit)}
+            );
+            console.log(resp);
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
     async getZoneInfo(signerAccountId: string, contractAccountID: string, metaverseID: string, zoneIndex: number) {
         this.near = await connect(this.config);
         try {
