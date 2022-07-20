@@ -467,6 +467,117 @@ impl Contract {
     }
 
     #[payable]
+    pub fn change_zone_price(
+        &mut self,
+        metaverse_id: String,
+        zone_index: u16,
+        price: U128,
+    ) {
+        self.assert_metaverse_owner(&metaverse_id);
+        let mut zone = self.assert_zone_exist(&metaverse_id, zone_index);
+        assert_eq!(zone.type_zone, 3, "type_zone is invalid");
+        assert!(zone.rock_index_to > 0, "rock_index_to invalid");
+        let initial_storage_usage = env::storage_usage();
+        let mut metaverse = self.metaverses.get(&metaverse_id).unwrap();
+        zone.price = price;
+
+        metaverse.zones.insert(zone_index, zone);
+        self.metaverses.insert(&metaverse_id, &metaverse);
+        if env::storage_usage() > initial_storage_usage {
+            refund_deposit_to_account(
+                env::storage_usage() - initial_storage_usage,
+                env::signer_account_id(),
+            );
+        }
+
+        let imo_change_zone_price: EventLog = EventLog {
+            standard: "imo_change_zone_price".to_string(),
+            version: "1.1.0".to_string(),
+            event: EventLogVariant::ImoChangeZonePrice(vec![ImoChangeZonePrice {
+                metaverse_id,
+                zone_index,
+                new_price: price,
+                memo: Some(String::from("change_zone_price")),
+            }]),
+        };
+
+        env::log_str(&imo_change_zone_price.to_string());
+    }
+
+    #[payable]
+    pub fn add_zone(&mut self, metaverse_id: String, _zone: Zone) {
+        let metaverse = self.assert_metaverse_exist(&metaverse_id);
+        let zone_checker = metaverse.zones.get(&_zone.zone_index);
+        match zone_checker {
+            Some(_zone) => {
+                env::panic_str("zone_index is already existed");
+            }
+            _ => {}
+        }
+
+        self.assert_metaverse_owner(&metaverse_id);
+
+        if !self.check_zone(&_zone) {
+            env::panic_str("zone is invalid");
+        }
+
+        let mut zones = metaverse.zones;
+        let total_rock_size: u128 = _zone.rock_index_to - _zone.rock_index_from + 1;
+        let mut total_add_zone_fee = 0;
+        if self.init_imo_fee > 0 {
+            total_add_zone_fee = self.init_imo_fee * total_rock_size;
+        }
+
+        let attached_deposit = env::attached_deposit();
+        require!(
+            total_add_zone_fee <= attached_deposit,
+            format!(
+                "Need {} yoctoNEAR to add zone with {} rocks ({} yoctoNEAR per rock)",
+                total_add_zone_fee, total_rock_size, self.init_imo_fee,
+            )
+        );
+
+        let refund = attached_deposit - total_add_zone_fee;
+        let initial_storage_usage = env::storage_usage();
+        zones.insert(_zone.zone_index, _zone.clone());
+        let metaverse = Metaverse { zones };
+        self.metaverses.insert(&metaverse_id, &metaverse);
+
+        if refund > 0 {
+            Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
+
+        let storage_used = env::storage_usage() - initial_storage_usage;
+        let storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
+        if total_add_zone_fee > storage_cost {
+            let remain = total_add_zone_fee - storage_cost;
+            if remain > 0 {
+                Promise::new(self.treasury_id.clone()).transfer(remain);
+            }
+        }
+
+        let add_zone_log: EventLog = EventLog {
+            standard: "public_imo_add_zone".to_string(),
+            version: "1.0.0".to_string(),
+            event: EventLogVariant::ImoAddZone(vec![ImoAddZoneLog {
+                metaverse_id,
+                owner_id: env::signer_account_id().to_string(),
+                zone_index: _zone.zone_index,
+                price: _zone.price,
+                core_team_addr: _zone.core_team_addr,
+                collection_addr: _zone.collection_addr,
+                type_zone: _zone.type_zone,
+                rock_index_from: _zone.rock_index_from,
+                rock_index_to: _zone.rock_index_to,
+                rock_size: total_rock_size,
+                memo: None,
+            }]),
+        };
+
+        env::log_str(&add_zone_log.to_string());
+    }
+
+    #[payable]
     pub fn mint_rock(
         &mut self,
         metaverse_id: String,

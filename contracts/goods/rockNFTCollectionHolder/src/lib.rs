@@ -284,7 +284,7 @@ impl Contract {
     }
 
     #[payable]
-    pub fn change_nft_collection_rock_price(
+    pub fn change_zone_price(
         &mut self,
         metaverse_id: String,
         zone_index: u16,
@@ -292,14 +292,53 @@ impl Contract {
     ) {
         self.assert_metaverse_owner(&metaverse_id);
         let mut zone = self.assert_zone_exist(&metaverse_id, zone_index);
-        assert_eq!(zone.type_zone, 2, "typ_zone invalid");
+        assert!(zone.type_zone == 2 || zone.type_zone == 3, "type_zone is invalid");
         assert!(zone.rock_index_to > 0, "rock_index_to invalid");
-
-        let mut metaverse_data = self.metaverses.get(&metaverse_id).unwrap();
+        let initial_storage_usage = env::storage_usage();
+        let mut metaverse = self.metaverses.get(&metaverse_id).unwrap();
         zone.price = price;
 
-        metaverse_data.zones.insert(zone_index, zone);
-        self.metaverses.insert(&metaverse_id, &metaverse_data);
+        metaverse.zones.insert(zone_index, zone);
+        self.metaverses.insert(&metaverse_id, &metaverse);
+        if env::storage_usage() > initial_storage_usage {
+            refund_deposit_to_account(
+                env::storage_usage() - initial_storage_usage,
+                env::signer_account_id(),
+            );
+        }
+
+        let imo_change_zone_price: EventLog = EventLog {
+            standard: "imo_change_zone_price".to_string(),
+            version: "1.1.0".to_string(),
+            event: EventLogVariant::ImoChangeZonePrice(vec![ImoChangeZonePrice {
+                metaverse_id,
+                zone_index,
+                new_price: price,
+                memo: Some(String::from("change_zone_price")),
+            }]),
+        };
+
+        env::log_str(&imo_change_zone_price.to_string());
+    }
+
+    #[payable]
+    pub fn change_metaverse_owner(
+        &mut self,
+        metaverse_id: String,
+        new_owner: AccountId,
+    ) {
+        self.assert_metaverse_exist(&metaverse_id);
+        assert_eq!(self.metaverse_owners.get(&metaverse_id).unwrap(), env::signer_account_id(),
+                   "only current metaverse_owner can call this function");
+        let initial_storage_usage = env::storage_usage();
+        self.metaverse_owners.insert(&metaverse_id, &new_owner);
+
+        if env::storage_usage() > initial_storage_usage {
+            refund_deposit_to_account(
+                env::storage_usage() - initial_storage_usage,
+                env::signer_account_id(),
+            );
+        }
     }
 
     #[payable]

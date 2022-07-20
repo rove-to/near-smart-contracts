@@ -1,4 +1,5 @@
 use std::fmt;
+use near_sdk::json_types::U128;
 
 use near_sdk::serde::{Deserialize, Serialize};
 
@@ -12,7 +13,9 @@ use near_sdk::serde::{Deserialize, Serialize};
 pub enum EventLogVariant {
     NftMint(Vec<NftMintLog>),
     NftTransfer(Vec<NftTransferLog>),
-    ImoInit(Vec<ImoInitLog>)
+    ImoInit(Vec<ImoInitLog>),
+    ImoAddZone(Vec<ImoAddZoneLog>),
+    ImoChangeZonePrice(Vec<ImoChangeZonePrice>)
 }
 
 /// Interface to capture data about an event
@@ -71,6 +74,35 @@ pub struct ImoInitLog {
     pub metaverse_id: String,
     pub owner_id: String,
     pub rock_size: u128,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct ImoAddZoneLog {
+    pub metaverse_id: String,
+    pub owner_id: String,
+    pub zone_index: u16,
+    pub price: U128,
+    pub core_team_addr: String,
+    pub collection_addr: String,
+    pub type_zone: u8,
+    pub rock_index_from: u128,
+    pub rock_index_to: u128, // required to >= from
+    pub rock_size: u128,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct ImoChangeZonePrice {
+    pub metaverse_id: String,
+    pub zone_index: u16,
+    pub new_price: U128,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,

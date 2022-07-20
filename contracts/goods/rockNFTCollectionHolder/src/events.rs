@@ -14,7 +14,8 @@ pub enum EventLogVariant {
     NftMint(Vec<NftMintLog>),
     NftTransfer(Vec<NftTransferLog>),
     ImoInit(Vec<ImoInitLog>),
-    ImoAddZone(Vec<ImoAddZoneLog>)
+    ImoAddZone(Vec<ImoAddZoneLog>),
+    ImoChangeZonePrice(Vec<ImoChangeZonePrice>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -104,3 +105,13 @@ pub struct ImoAddZoneLog {
     pub memo: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct ImoChangeZonePrice {
+    pub metaverse_id: String,
+    pub zone_index: u16,
+    pub new_price: U128,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
