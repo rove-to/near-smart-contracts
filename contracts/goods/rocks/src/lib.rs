@@ -434,7 +434,7 @@ impl Contract {
             event: EventLogVariant::NftMint(vec![NftMintLog {
                 owner_id: receiver_id.to_string(),
                 token_ids: vec![token_id.to_string()],
-                memo: None,
+                memo: Some(String::from("mint_rock")),
             }]),
         };
 

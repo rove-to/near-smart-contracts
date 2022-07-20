@@ -453,7 +453,7 @@ impl Contract {
                 metaverse_id,
                 owner_id: env::signer_account_id().to_string(),
                 rock_size: total_rock_size,
-                memo: None,
+                memo: Some(String::from("mint_rock")),
             }]),
         };
 
