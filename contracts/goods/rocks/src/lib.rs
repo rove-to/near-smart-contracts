@@ -595,9 +595,7 @@ impl Contract {
             zone.rock_index_from <= rock_index && rock_index <= zone.rock_index_to,
             "rock_index invalid"
         );
-        if zone.type_zone == 1 {
-            assert_eq!(env::signer_account_id(), self.operator_id, "only operator cant mint center rock")
-        }
+
         let token_id = gen_token_id(&metaverse_id, zone_index, rock_index);
         let tokens_minted = self.tokens_minted.get(&metaverse_id).unwrap();
         let tokens_minted_checker = tokens_minted.get(&token_id);
