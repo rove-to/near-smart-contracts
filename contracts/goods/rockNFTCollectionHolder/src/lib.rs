@@ -158,6 +158,7 @@ impl Contract {
         metadata: NFTContractMetadata,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
+        assert!(rock_purchase_fee <= 10_000, "rock_purchase_fee must <= 10_000");
         metadata.assert_valid();
         let init_imo_fee_in_128 = u128::from(init_imo_fee);
 
@@ -251,6 +252,7 @@ impl Contract {
     #[payable]
     pub fn change_rock_purchase_fee(&mut self, rock_purchase_fee: u32) {
         self.assert_operator_only();
+        assert!(rock_purchase_fee <= 10_000, "rock_purchase_fee must <= 10_000");
         self.rock_purchase_fee = rock_purchase_fee;
     }
 
@@ -540,7 +542,7 @@ impl Contract {
                     }
                 }
                 if !mintable {
-                    env::panic_str("You need to have an NFT to mint rock in this zone")
+                    env::panic_str("You need to have an NFT to mint land in this zone")
                 }
                 let zone = self.assert_zone_exist(&metaverse_id, zone_index);
                 let token_id = gen_token_id(&metaverse_id, zone_index, rock_index);
@@ -551,7 +553,7 @@ impl Contract {
                     token_metadata.clone(),
                     zone.price,
                     zone.type_zone,
-                    use_token_id.to_string().clone(),
+                    use_token_id.to_string(),
                 );
             }
         };
@@ -568,6 +570,14 @@ impl Contract {
         use_token_id: String,
     ) {
         let initial_storage_usage = env::storage_usage();
+        let attached_deposit = env::attached_deposit();
+        let token_price = u128::from(token_price_str);
+        require!(
+            token_price <= attached_deposit,
+            format!("Need {} yoctoNEAR to mint this rock", token_price)
+        );
+        let refund = attached_deposit - token_price;
+
         let token = self.tokens.internal_mint_with_refund(
             token_id.clone(),
             receiver_id.clone(),
@@ -585,24 +595,14 @@ impl Contract {
             self.nft_checker.insert(&metaverse_id, &nft_checker);
         }
 
-        let attached_deposit = env::attached_deposit();
-        let token_price = u128::from(token_price_str);
-        require!(
-            token_price <= attached_deposit,
-            format!("Need {} yoctoNEAR to mint this rock", token_price)
-        );
-        let refund = attached_deposit - token_price;
         /*
-        if token_price == 0 => contract account will pay storage cost
+            if token_price == 0 => contract account will pay storage cost
          */
         let storage_used = env::storage_usage() - initial_storage_usage;
         let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
         if token_price > 0 {
-            let mut remain: u128 = 0;
             if token_price > required_storage_cost {
-                remain = token_price - required_storage_cost;
-            }
-            if remain > 0 {
+                let remain = token_price - required_storage_cost;
                 if self.rock_purchase_fee > 0 {
                     let treasury_amount = remain * self.rock_purchase_fee as u128 / 10_000;
                     let metaverse_owner_amount = remain - treasury_amount;
