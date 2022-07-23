@@ -118,6 +118,7 @@ impl Contract {
         metadata: NFTContractMetadata,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
+        assert!(rock_purchase_fee <= 10_000, "rock_purchase_fee must <= 10_000");
         metadata.assert_valid();
         let init_imo_fee_in_128 = u128::from(init_imo_fee);
 
@@ -208,6 +209,7 @@ impl Contract {
     #[payable]
     pub fn change_rock_purchase_fee(&mut self, rock_purchase_fee: u32) {
         self.assert_operator_only();
+        assert!(rock_purchase_fee <= 10_000, "rock_purchase_fee must <= 10_000");
         self.rock_purchase_fee = rock_purchase_fee;
     }
 
@@ -384,6 +386,13 @@ impl Contract {
     ) {
         let initial_storage_usage = env::storage_usage();
         let token_price = u128::from(token_price_str);
+        let attached_deposit = env::attached_deposit();
+        require!(
+            token_price <= attached_deposit,
+            format!("Need {} yoctoNEAR to mint this rock", token_price)
+        );
+        let refund = attached_deposit - token_price;
+
         let token = self.tokens.internal_mint_with_refund(
             token_id.clone(),
             receiver_id.clone(),
@@ -395,20 +404,14 @@ impl Contract {
         token_minted.insert(token.token_id.to_string(), true);
         self.tokens_minted.insert(&metaverse_id, &token_minted);
 
-        let attached_deposit = env::attached_deposit();
-        require!(
-            token_price <= attached_deposit,
-            format!("Need {} yoctoNEAR to mint this rock", token_price)
-        );
-        let refund = attached_deposit - token_price;
         /*
-        if token_price == 0 => contract account will pay storage cost
+        if token_price == 0 (Rove team) => contract's account will pay storage cost
          */
         if token_price > 0 {
             let storage_used = env::storage_usage() - initial_storage_usage;
             let required_storage_cost = env::storage_byte_cost() * Balance::from(storage_used);
-            let remain = token_price - required_storage_cost;
-            if remain > 0 {
+            if token_price > required_storage_cost {
+                let remain = token_price - required_storage_cost;
                 if self.rock_purchase_fee > 0 {
                     let treasury_amount = remain * self.rock_purchase_fee as u128 / 10_000;
                     let metaverse_owner_amount = remain - treasury_amount;
